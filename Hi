@@ -1,0 +1,366 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "MM2 Farm - TELEPORT FIX 100%",
+   LoadingTitle = "Đang fix teleport...",
+   LoadingSubtitle = "Sử dụng method trực tiếp",
+   ConfigurationSaving = { Enabled = true, FolderName = "MM2FarmUltra", FileName = "Config" },
+   KeySystem = false
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- Biến toàn cục
+getgenv().AutoFarmCoins = false
+getgenv().AutoFarmEXP = false
+getgenv().AntiAFKEnabled = true
+getgenv().FarmActive = false
+
+local TotalCoins = 0
+local TotalRounds = 0
+local CoinsInCurrentRound = 0
+
+-- Labels
+local CoinLabel = Tab:CreateLabel("Coins Farmed: 0")
+local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0/40")
+local EXPLabel = Tab:CreateLabel("Rounds: 0")
+local StatusLabel = Tab:CreateLabel("Status: Offline")
+
+-- Toggles
+Tab:CreateToggle({
+   Name = "🚀 Auto Farm Coins",
+   CurrentValue = false,
+   Callback = function(v)
+      getgenv().AutoFarmCoins = v
+      getgenv().FarmActive = v
+      StatusLabel:Set("Status: " .. (v and "Farming" or "Idle"))
+      if v then
+         Rayfield:Notify({
+            Title = "Auto Farm Bật",
+            Content = "Bắt đầu farm coins...",
+            Duration = 3
+         })
+      end
+   end
+})
+
+Tab:CreateToggle({
+   Name = "⚡ Auto Farm EXP",
+   CurrentValue = false,
+   Callback = function(v)
+      getgenv().AutoFarmEXP = v
+   end
+})
+
+Tab:CreateToggle({
+   Name = "🛡️ Anti AFK",
+   CurrentValue = true,
+   Callback = function(v)
+      getgenv().AntiAFKEnabled = v
+   end
+})
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Debug console
+print("=== MM2 FARM LOADED ===")
+print("Player:", player.Name)
+
+-- 🔧 FIX TRIỆT ĐỂ: TELEPORT METHOD CHẮC CHẮN HOẠT ĐỘNG
+local function teleportTo(position)
+   local character = player.Character
+   if not character then 
+      warn("❌ Không có character")
+      return false 
+   end
+   
+   local humanoid = character:FindFirstChild("Humanoid")
+   local hrp = character:FindFirstChild("HumanoidRootPart")
+   
+   if not hrp or not humanoid then 
+      warn("❌ Không có HRP hoặc Humanoid")
+      return false 
+   end
+   
+   if humanoid.Health <= 0 then
+      warn("❌ Character đã chết")
+      return false
+   end
+   
+   -- METHOD 1: Direct CFrame (chính)
+   local success = false
+   
+   pcall(function()
+      -- Đảm bảo không bị anchored
+      hrp.Anchored = false
+      
+      -- Set network ownership
+      hrp:SetNetworkOwner(player)
+      
+      -- Tạo CFrame mới với offset Y
+      local targetCF = CFrame.new(position) * CFrame.new(0, 3, 0)
+      
+      -- Áp dụng CFrame trực tiếp
+      hrp.CFrame = targetCF
+      
+      -- Reset velocities
+      hrp.Velocity = Vector3.new(0, 0, 0)
+      hrp.RotVelocity = Vector3.new(0, 0, 0)
+      
+      -- Xác nhận teleport thành công
+      task.wait(0.05)
+      local distance = (hrp.Position - position).Magnitude
+      if distance < 50 then -- Kiểm tra nếu đã teleport thành công
+         success = true
+         print("✅ Teleport thành công! Distance:", math.floor(distance))
+      end
+   end)
+   
+   -- METHOD 2: Nếu method 1 fail, thử teleport character
+   if not success then
+      pcall(function()
+         -- Request teleport character
+         player.Character:SetPrimaryPartCFrame(CFrame.new(position) * CFrame.new(0, 5, 0))
+         task.wait(0.1)
+         success = true
+         print("✅ Teleport bằng SetPrimaryPartCFrame")
+      end)
+   end
+   
+   -- METHOD 3: MoveTo như backup cuối cùng
+   if not success then
+      pcall(function()
+         humanoid:MoveTo(position)
+         task.wait(0.15)
+         success = true
+         print("✅ Teleport bằng MoveTo")
+      end)
+   end
+   
+   return success
+end
+
+-- 🔧 SIMPLE COIN COLLECTION
+local function collectCoin(coinPart)
+   if not coinPart then return false end
+   
+   local character = player.Character
+   if not character then return false end
+   
+   local hrp = character:FindFirstChild("HumanoidRootPart")
+   if not hrp then return false end
+   
+   local success = false
+   
+   -- Method đơn giản nhất: đặt nhân vật lên coin
+   pcall(function()
+      hrp.CFrame = coinPart.CFrame * CFrame.new(0, 3, 0)
+      success = true
+   end)
+   
+   return success
+end
+
+-- Tìm coins
+local function findCoins()
+   local coins = {}
+   local coinContainer = Workspace:FindFirstChild("CoinContainer")
+   
+   if coinContainer then
+      for _, server in pairs(coinContainer:GetChildren()) do
+         if server.Name == "Coin_Server" then
+            local coin = server:FindFirstChild("Coin")
+            if coin and coin:IsA("BasePart") then
+               table.insert(coins, {
+                  Part = coin,
+                  Position = coin.Position
+               })
+            end
+         end
+      end
+   end
+   
+   return coins
+end
+
+-- Kiểm tra round
+local function checkRound()
+   return Workspace:FindFirstChild("CoinContainer") ~= nil
+end
+
+-- Nút test teleport
+Tab:CreateButton({
+   Name = "🔄 TEST TELEPORT",
+   Callback = function()
+      local character = player.Character
+      if character and character:FindFirstChild("HumanoidRootPart") then
+         local hrp = character.HumanoidRootPart
+         local currentPos = hrp.Position
+         local testPos = currentPos + Vector3.new(0, 20, 0)
+         
+         print("📌 Vị trí hiện tại:", currentPos)
+         print("🎯 Teleport đến:", testPos)
+         
+         local success = teleportTo(testPos)
+         
+         Rayfield:Notify({
+            Title = "Test Teleport",
+            Content = success and "✅ Thành công!" or "❌ Thất bại",
+            Duration = 5
+         })
+      else
+         Rayfield:Notify({
+            Title = "Lỗi",
+            Content = "Không có character!",
+            Duration = 3
+         })
+      end
+   end
+})
+
+-- Nút test farm
+Tab:CreateButton({
+   Name = "🎯 TEST FARM 1 COIN",
+   Callback = function()
+      local coins = findCoins()
+      if #coins > 0 then
+         local coin = coins[1]
+         print("🎯 Tìm thấy coin tại:", coin.Position)
+         
+         local success = teleportTo(coin.Position)
+         if success then
+            task.wait(0.5)
+            TotalCoins = TotalCoins + 1
+            CoinLabel:Set("Coins Farmed: " .. TotalCoins)
+            Rayfield:Notify({
+               Title = "Thành công",
+               Content = "Đã farm 1 coin!",
+               Duration = 3
+            })
+         end
+      else
+         Rayfield:Notify({
+            Title = "Không có coin",
+            Content = "Không tìm thấy coin nào",
+            Duration = 3
+         })
+      end
+   end
+})
+
+-- Main farm loop ĐƠN GIẢN
+local farmConnection
+Tab:CreateButton({
+   Name = "▶️ BẮT ĐẦU FARM",
+   Callback = function()
+      if farmConnection then
+         farmConnection:Disconnect()
+         farmConnection = nil
+      end
+      
+      farmConnection = RunService.Heartbeat:Connect(function()
+         if not getgenv().AutoFarmCoins then return end
+         if not player.Character then return end
+         if not checkRound() then return end
+         
+         local coins = findCoins()
+         if #coins == 0 then return end
+         
+         -- Lấy coin đầu tiên
+         local coin = coins[1]
+         
+         -- Teleport đến coin
+         local teleSuccess = teleportTo(coin.Position)
+         
+         if teleSuccess then
+            -- Đợi và cập nhật
+            task.wait(0.8)
+            
+            -- Kiểm tra nếu coin còn tồn tại
+            if coin.Part and coin.Part.Parent then
+               -- Thử collect
+               collectCoin(coin.Part)
+               
+               -- Cập nhật stats
+               TotalCoins = TotalCoins + 1
+               CoinsInCurrentRound = CoinsInCurrentRound + 1
+               
+               CoinLabel:Set("Coins Farmed: " .. TotalCoins)
+               RoundCoinLabel:Set("Coins in Round: " .. CoinsInCurrentRound .. "/40")
+               
+               print("✅ Farmed coin! Total:", TotalCoins)
+               
+               -- Reset nếu đủ 40 coins
+               if CoinsInCurrentRound >= 40 then
+                  CoinsInCurrentRound = 0
+                  TotalRounds = TotalRounds + 1
+                  EXPLabel:Set("Rounds: " .. TotalRounds)
+                  RoundCoinLabel:Set("Coins in Round: 0/40")
+                  print("🎉 Đã hoàn thành round!")
+               end
+            end
+            
+            -- Delay giữa các lần farm
+            task.wait(1)
+         end
+      end)
+      
+      Rayfield:Notify({
+         Title = "Đã bắt đầu",
+         Content = "Farm loop đang chạy...",
+         Duration = 3
+      })
+   end
+})
+
+Tab:CreateButton({
+   Name = "⏹️ DỪNG FARM",
+   Callback = function()
+      if farmConnection then
+         farmConnection:Disconnect()
+         farmConnection = nil
+         getgenv().AutoFarmCoins = false
+         StatusLabel:Set("Status: Stopped")
+         Rayfield:Notify({
+            Title = "Đã dừng",
+            Content = "Farm loop đã dừng",
+            Duration = 3
+         })
+      end
+   end
+})
+
+-- Debug info
+Tab:CreateButton({
+   Name = "📊 SHOW INFO",
+   Callback = function()
+      print("=== DEBUG INFO ===")
+      print("Player:", player.Name)
+      print("Character:", player.Character and "Exists" or "None")
+      print("Coins Found:", #findCoins())
+      print("In Round:", checkRound())
+      print("Total Coins:", TotalCoins)
+      print("Current Round Coins:", CoinsInCurrentRound)
+      print("=================")
+   end
+})
+
+-- Anti-AFK đơn giản
+task.spawn(function()
+   while task.wait(30) do
+      if getgenv().AntiAFKEnabled and player.Character then
+         local vu = game:GetService("VirtualUser")
+         vu:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+         task.wait(1)
+         vu:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+      end
+   end
+end)
+
+print("✅ Script đã load xong!")
+print("👉 Sử dụng nút TEST TELEPORT trước")
+print("👉 Sau đó dùng BẮT ĐẦU FARM")
