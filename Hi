@@ -1,107 +1,260 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "MM2 Auto Farm",
-   LoadingTitle = "Loading...",
-   LoadingSubtitle = "Simple Farm System",
-   ConfigurationSaving = { Enabled = false },
+   Name = "MM2 Farm Coins & EXP ✅ TELE FIXED 100%",
+   LoadingTitle = "Loading Rayfield...",
+   LoadingSubtitle = "CoinContainer Detect + Tránh Murder 60m",
+   ConfigurationSaving = { Enabled = true, FolderName = "MM2Farm", FileName = "Config" },
    KeySystem = false
 })
 
 local Tab = Window:CreateTab("Farm", 4483362458)
 
-getgenv().AutoFarm = false
+getgenv().AutoFarmCoins = false
+getgenv().AutoFarmEXP = false
+getgenv().AntiAFKEnabled = true
+
+local TotalCoins = 0
+local TotalRounds = 0
+local CoinsInCurrentRound = 0
+
+local CoinLabel = Tab:CreateLabel("Coins Farmed (Total): 0")
+local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0 / 40")
+local EXPLabel = Tab:CreateLabel("Rounds Completed: 0")
 
 Tab:CreateToggle({
-   Name = "Auto Farm Coins",
+   Name = "🚀 Auto Farm Coins (Tránh Murder 60m - 1.6s/coin - CoinContainer)",
    CurrentValue = false,
-   Callback = function(v) 
-      getgenv().AutoFarm = v 
-      if v then
-         Rayfield:Notify({
-            Title = "Auto Farm",
-            Content = "Đã bật auto farm",
-            Duration = 2
-         })
-      end
-   end
+   Callback = function(v) getgenv().AutoFarmCoins = v end
+})
+
+Tab:CreateToggle({
+   Name = "⚡ Auto Farm EXP (Kill All sau 40 coins)",
+   CurrentValue = false,
+   Callback = function(v) getgenv().AutoFarmEXP = v end
+})
+
+Tab:CreateToggle({
+   Name = "🛡️ Anti AFK (Tự động bật)",
+   CurrentValue = true,
+   Callback = function(v) getgenv().AntiAFKEnabled = v end
 })
 
 local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
--- TELEPORT FIX
-local function teleport(pos)
-   local char = player.Character
-   if not char then return false end
-   
-   local hrp = char:FindFirstChild("HumanoidRootPart")
-   if not hrp then return false end
-   
-   local success = false
-   
-   pcall(function()
-      hrp.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z)
-      success = true
-   end)
-   
-   return success
-end
-
--- TÌM COINS
-local function getCoins()
-   local coins = {}
-   local container = Workspace:FindFirstChild("CoinContainer")
-   
-   if container then
-      for _, server in pairs(container:GetChildren()) do
-         if server.Name == "Coin_Server" then
-            local coin = server:FindFirstChild("Coin")
-            if coin and coin:IsA("BasePart") then
-               table.insert(coins, coin)
-            end
-         end
-      end
-   end
-   
-   return coins
-end
-
--- AUTO FARM LOOP
 task.spawn(function()
-   while true do
-      task.wait(0.5)
-      
-      if not getgenv().AutoFarm then continue end
-      if not player.Character then continue end
-      if player.Character.Humanoid.Health <= 0 then continue end
-      
-      local coins = getCoins()
-      if #coins == 0 then continue end
-      
-      -- Lấy coin đầu tiên
-      local coin = coins[1]
-      
-      -- Teleport đến coin
-      if teleport(coin.Position) then
-         -- Chờ 1 giây
-         task.wait(1)
-         
-         -- Thu thập coin bằng firetouch
-         pcall(function()
-            local hrp = player.Character.HumanoidRootPart
-            if hrp then
-               firetouchinterest(hrp, coin, 0)
-               task.wait(0.05)
-               firetouchinterest(hrp, coin, 1)
-            end
-         end)
-         
-         -- Chờ trước khi farm tiếp
-         task.wait(0.5)
+   while task.wait(60) do
+      if getgenv().AntiAFKEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+         VirtualUser:CaptureController()
+         VirtualUser:ClickButton2(Vector2.new())
       end
    end
 end)
 
-print("✅ Auto Farm Loaded")
+player.Idled:Connect(function()
+   if getgenv().AntiAFKEnabled then
+      VirtualUser:CaptureController()
+      VirtualUser:ClickButton2(Vector2.new())
+   end
+end)
+
+local function getHRP()
+   return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getPlayerRole(plr)
+   if plr:FindFirstChild("Role") and plr.Role:IsA("StringValue") then
+      return plr.Role.Value
+   end
+   local char = plr.Character
+   local backpack = plr.Backpack
+   if (char and char:FindFirstChild("Knife")) or (backpack and backpack:FindFirstChild("Knife")) then return "Murderer" end
+   if (char and char:FindFirstChild("Gun")) or (backpack and backpack:FindFirstChild("Gun")) then return "Sheriff" end
+   return "Innocent"
+end
+
+local function getCoinContainer()
+   return Workspace:FindFirstChild("CoinContainer", true)
+end
+
+local function isInRound()
+   return getCoinContainer() ~= nil
+end
+
+local function getCoins()
+   local coinContainer = getCoinContainer()
+   if not coinContainer then return {} end
+   local coins = {}
+   for _, obj in pairs(coinContainer:GetChildren()) do
+      if obj.Name == "Coin_Server" and obj:IsA("BasePart") then
+         table.insert(coins, obj)
+      end
+   end
+   return coins
+end
+
+local function getMurderers()
+   local murders = {}
+   for _, p in Players:GetPlayers() do
+      if p ~= player and getPlayerRole(p) == "Murderer" and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+         table.insert(murders, p.Character.HumanoidRootPart)
+      end
+   end
+   return murders
+end
+
+task.spawn(function()
+   local wasInRound = false
+   while task.wait(2) do
+      local nowInRound = isInRound()
+      if wasInRound and not nowInRound then
+         CoinsInCurrentRound = 0
+         RoundCoinLabel:Set("Coins in Round: 0 / 40")
+      end
+      wasInRound = nowInRound
+   end
+end)
+
+-- FIXED AUTO FARM COINS: Không teleport lặp lại vào coin cũ
+task.spawn(function()
+   local recentlyTeleported = {}  -- Lưu vị trí coin đã teleport gần đây (trong 3 giây)
+
+   while task.wait(0.1) do
+      if not getgenv().AutoFarmCoins or not isInRound() then 
+         continue 
+      end
+      
+      local hrp = getHRP()
+      if not hrp or not player.Character or player.Character.Humanoid.Health <= 0 then 
+         continue 
+      end
+
+      local coins = getCoins()
+      if #coins == 0 then 
+         continue 
+      end
+
+      local murders = getMurderers()
+
+      -- Lọc bỏ các coin ở vị trí đã teleport gần đây
+      local validCoins = {}
+      for _, coin in pairs(coins) do
+         local tooRecent = false
+         for i = #recentlyTeleported, 1, -1 do
+            local entry = recentlyTeleported[i]
+            if (coin.Position - entry.pos).Magnitude < 10 then  -- cùng vị trí (dung sai 10 studs)
+               tooRecent = true
+               break
+            end
+            -- Xóa entry cũ hơn 3 giây
+            if tick() - entry.time > 3 then
+               table.remove(recentlyTeleported, i)
+            end
+         end
+         if not tooRecent then
+            table.insert(validCoins, coin)
+         end
+      end
+
+      if #validCoins == 0 then
+         continue  -- Không có coin mới nào để nhặt
+      end
+
+      -- Sort theo khoảng cách + an toàn
+      table.sort(validCoins, function(a, b)
+         local distA = (hrp.Position - a.Position).Magnitude
+         local distB = (hrp.Position - b.Position).Magnitude
+         
+         local safeA = math.huge
+         local safeB = math.huge
+         for _, m in pairs(murders) do
+            safeA = math.min(safeA, (a.Position - m.Position).Magnitude)
+            safeB = math.min(safeB, (b.Position - m.Position).Magnitude)
+         end
+         
+         if safeA >= 60 and safeB < 60 then return true end
+         if safeB >= 60 and safeA < 60 then return false end
+         return distA < distB
+      end)
+
+      local coin = validCoins[1]
+      if not coin or not coin.Parent then 
+         continue 
+      end
+
+      local minDistToMurder = math.huge
+      for _, m in pairs(murders) do
+         minDistToMurder = math.min(minDistToMurder, (coin.Position - m.Position).Magnitude)
+      end
+
+      if minDistToMurder >= 60 then
+         hrp.Velocity = Vector3.new(0,0,0)
+         hrp.CFrame = CFrame.new(coin.Position)
+         
+         -- Ghi nhớ vị trí này đã teleport
+         table.insert(recentlyTeleported, { pos = coin.Position, time = tick() })
+         
+         task.wait(0.2)
+         
+         local wasAlive = coin.Parent
+         task.wait(1.4)
+         
+         if wasAlive and not coin.Parent then
+            TotalCoins += 1
+            CoinsInCurrentRound += 1
+            CoinLabel:Set("Coins Farmed (Total): " .. TotalCoins)
+            RoundCoinLabel:Set("Coins in Round: " .. CoinsInCurrentRound .. " / 40")
+         end
+      else
+         task.wait(0.4)
+      end
+   end
+end)
+
+task.spawn(function()
+   while task.wait(1) do
+      if CoinsInCurrentRound >= 40 and isInRound() then
+         local myRole = getPlayerRole(player)
+         if myRole == "Innocent" then
+            local hrp = getHRP()
+            if hrp then
+               hrp.CFrame = CFrame.new(0, 350, 0)
+            end
+            CoinsInCurrentRound = 0
+            RoundCoinLabel:Set("Coins in Round: 0 / 40")
+         end
+      end
+   end
+end)
+
+task.spawn(function()
+   while task.wait(1) do
+      if getgenv().AutoFarmEXP and CoinsInCurrentRound >= 40 and player.Character and player.Character.Humanoid.Health > 0 then
+         local knife = player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
+         if knife and knife:FindFirstChild("Handle") then
+            if knife.Parent == player.Backpack then knife.Parent = player.Character end
+            for _, p in Players:GetPlayers() do
+               if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
+                  local target = p.Character.HumanoidRootPart
+                  local hrp = getHRP()
+                  if hrp then
+                     hrp.CFrame = target.CFrame * CFrame.new(0, 0, -2.5)
+                     task.wait(0.1)
+                     local handle = knife.Handle
+                     firetouchinterest(handle, target, 0)
+                     task.wait(0.1)
+                     firetouchinterest(handle, target, 1)
+                  end
+               end
+            end
+            TotalRounds += 1
+            EXPLabel:Set("Rounds Completed: " .. TotalRounds)
+            CoinsInCurrentRound = 0
+            RoundCoinLabel:Set("Coins in Round: 0 / 40")
+         end
+      end
+   end
+end)
