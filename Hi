@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "MM2 Farm Coins & EXP ✅ TELE FIXED 100%",
    LoadingTitle = "Loading Rayfield...",
-   LoadingSubtitle = "CoinContainer Detect + Tránh Murder 60m",
+   LoadingSubtitle = "CoinContainer Detect + Tránh Murder 90m",
    ConfigurationSaving = { Enabled = true, FolderName = "MM2Farm", FileName = "Config" },
    KeySystem = false
 })
@@ -23,7 +23,7 @@ local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0 / 40")
 local EXPLabel = Tab:CreateLabel("Rounds Completed: 0")
 
 Tab:CreateToggle({
-   Name = "🚀 Auto Farm Coins (Tránh Murder 60m - 1.6s/coin - CoinContainer)",
+   Name = "🚀 Auto Farm Coins (Tránh Murder 90m - 1.9s/coin - CoinContainer)",
    CurrentValue = false,
    Callback = function(v) getgenv().AutoFarmCoins = v end
 })
@@ -118,9 +118,9 @@ task.spawn(function()
    end
 end)
 
--- FIXED AUTO FARM COINS: Không teleport lặp lại vào coin cũ
+-- ĐÃ CHỈNH: Tốc độ 1.9s/coin + Tránh Murder ≥ 90 studs
 task.spawn(function()
-   local recentlyTeleported = {}  -- Lưu vị trí coin đã teleport gần đây (trong 3 giây)
+   local recentlyTeleported = {}  -- Cache vị trí coin đã tele gần đây
 
    while task.wait(0.1) do
       if not getgenv().AutoFarmCoins or not isInRound() then 
@@ -139,17 +139,16 @@ task.spawn(function()
 
       local murders = getMurderers()
 
-      -- Lọc bỏ các coin ở vị trí đã teleport gần đây
+      -- Lọc bỏ coin cũ đã tele gần đây
       local validCoins = {}
       for _, coin in pairs(coins) do
          local tooRecent = false
          for i = #recentlyTeleported, 1, -1 do
             local entry = recentlyTeleported[i]
-            if (coin.Position - entry.pos).Magnitude < 10 then  -- cùng vị trí (dung sai 10 studs)
+            if (coin.Position - entry.pos).Magnitude < 10 then
                tooRecent = true
                break
             end
-            -- Xóa entry cũ hơn 3 giây
             if tick() - entry.time > 3 then
                table.remove(recentlyTeleported, i)
             end
@@ -160,10 +159,10 @@ task.spawn(function()
       end
 
       if #validCoins == 0 then
-         continue  -- Không có coin mới nào để nhặt
+         continue
       end
 
-      -- Sort theo khoảng cách + an toàn
+      -- Sort ưu tiên an toàn trước, sau đó gần nhất
       table.sort(validCoins, function(a, b)
          local distA = (hrp.Position - a.Position).Magnitude
          local distB = (hrp.Position - b.Position).Magnitude
@@ -175,8 +174,8 @@ task.spawn(function()
             safeB = math.min(safeB, (b.Position - m.Position).Magnitude)
          end
          
-         if safeA >= 60 and safeB < 60 then return true end
-         if safeB >= 60 and safeA < 60 then return false end
+         if safeA >= 90 and safeB < 90 then return true end
+         if safeB >= 90 and safeA < 90 then return false end
          return distA < distB
       end)
 
@@ -190,17 +189,17 @@ task.spawn(function()
          minDistToMurder = math.min(minDistToMurder, (coin.Position - m.Position).Magnitude)
       end
 
-      if minDistToMurder >= 60 then
+      -- Chỉ tele nếu coin cách Murderer ≥ 90 studs
+      if minDistToMurder >= 90 then
          hrp.Velocity = Vector3.new(0,0,0)
          hrp.CFrame = CFrame.new(coin.Position)
          
-         -- Ghi nhớ vị trí này đã teleport
          table.insert(recentlyTeleported, { pos = coin.Position, time = tick() })
          
-         task.wait(0.2)
+         task.wait(0.3)         -- Tăng nhẹ delay đầu để ổn định hơn
          
          local wasAlive = coin.Parent
-         task.wait(1.4)
+         task.wait(1.6)         -- Tổng delay sau tele: 0.3 + 1.6 = 1.9 giây/coin
          
          if wasAlive and not coin.Parent then
             TotalCoins += 1
