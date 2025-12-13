@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "MM2 Farm Coins & EXP ✅ TELE FIXED 100%",
    LoadingTitle = "Loading Rayfield...",
-   LoadingSubtitle = "CoinContainer Detect + Tránh Murder 90m",
+   LoadingSubtitle = "CoinContainer Detect + Tránh Sheriff & Murder 100m",
    ConfigurationSaving = { Enabled = true, FolderName = "MM2Farm", FileName = "Config" },
    KeySystem = false
 })
@@ -23,7 +23,7 @@ local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0 / 40")
 local EXPLabel = Tab:CreateLabel("Rounds Completed: 0")
 
 Tab:CreateToggle({
-   Name = "🚀 Auto Farm Coins (Tránh Murder 90m - 2.2s/coin - CoinContainer)",
+   Name = "🚀 Auto Farm Coins (Tránh Sheriff & Murder 100m - 2.2s/coin - CHỈ TRONG VÁN)",
    CurrentValue = false,
    Callback = function(v) getgenv().AutoFarmCoins = v end
 })
@@ -84,6 +84,10 @@ local function isInRound()
    return getCoinContainer() ~= nil
 end
 
+local function isAlive()
+   return player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+end
+
 local function getCoins()
    local coinContainer = getCoinContainer()
    if not coinContainer then return {} end
@@ -96,14 +100,18 @@ local function getCoins()
    return coins
 end
 
-local function getMurderers()
-   local murders = {}
+-- FIXED: Tránh cả Murderer + Sheriff
+local function getDangerousPlayers()
+   local dangerous = {}
    for _, p in Players:GetPlayers() do
-      if p ~= player and getPlayerRole(p) == "Murderer" and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-         table.insert(murders, p.Character.HumanoidRootPart)
+      if p ~= player then
+         local role = getPlayerRole(p)
+         if (role == "Murderer" or role == "Sheriff") and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(dangerous, p.Character.HumanoidRootPart)
+         end
       end
    end
-   return murders
+   return dangerous
 end
 
 task.spawn(function()
@@ -118,12 +126,13 @@ task.spawn(function()
    end
 end)
 
--- FIXED: 2.2s/coin + DỪNG FARM COINS khi >=40 + Tele nóc map
+-- FIXED: CHỈ TELE TRONG VÁN + SỐNG + Tránh Sheriff & Murder ≥100m + 2.2s/coin
 task.spawn(function()
    local recentlyTeleported = {}  -- Cache vị trí coin đã tele gần đây
 
    while task.wait(0.1) do
-      if not getgenv().AutoFarmCoins or not isInRound() then 
+      -- KIỂM TRA CHẶT CHẼ: Phải trong ván + SỐNG + Bật farm
+      if not getgenv().AutoFarmCoins or not isInRound() or not isAlive() then 
          continue 
       end
       
@@ -134,7 +143,7 @@ task.spawn(function()
       end
       
       local hrp = getHRP()
-      if not hrp or not player.Character or player.Character.Humanoid.Health <= 0 then 
+      if not hrp then 
          continue 
       end
 
@@ -143,7 +152,7 @@ task.spawn(function()
          continue 
       end
 
-      local murders = getMurderers()
+      local dangerous = getDangerousPlayers()
 
       -- Lọc bỏ coin cũ đã tele gần đây
       local validCoins = {}
@@ -168,20 +177,20 @@ task.spawn(function()
          continue
       end
 
-      -- Sort ưu tiên an toàn ≥90m trước, sau đó gần nhất
+      -- Sort ưu tiên an toàn ≥100m trước (Sheriff + Murder), sau đó gần nhất
       table.sort(validCoins, function(a, b)
          local distA = (hrp.Position - a.Position).Magnitude
          local distB = (hrp.Position - b.Position).Magnitude
          
          local safeA = math.huge
          local safeB = math.huge
-         for _, m in pairs(murders) do
-            safeA = math.min(safeA, (a.Position - m.Position).Magnitude)
-            safeB = math.min(safeB, (b.Position - m.Position).Magnitude)
+         for _, d in pairs(dangerous) do
+            safeA = math.min(safeA, (a.Position - d.Position).Magnitude)
+            safeB = math.min(safeB, (b.Position - d.Position).Magnitude)
          end
          
-         if safeA >= 90 and safeB < 90 then return true end
-         if safeB >= 90 and safeA < 90 then return false end
+         if safeA >= 100 and safeB < 100 then return true end
+         if safeB >= 100 and safeA < 100 then return false end
          return distA < distB
       end)
 
@@ -190,12 +199,13 @@ task.spawn(function()
          continue 
       end
 
-      local minDistToMurder = math.huge
-      for _, m in pairs(murders) do
-         minDistToMurder = math.min(minDistToMurder, (coin.Position - m.Position).Magnitude)
+      local minDistToDanger = math.huge
+      for _, d in pairs(dangerous) do
+         minDistToDanger = math.min(minDistToDanger, (coin.Position - d.Position).Magnitude)
       end
 
-      if minDistToMurder >= 90 then
+      -- Chỉ tele nếu coin cách Sheriff/Murder ≥ 100 studs
+      if minDistToDanger >= 100 then
          hrp.Velocity = Vector3.new(0,0,0)
          hrp.CFrame = CFrame.new(coin.Position)
          
@@ -218,13 +228,13 @@ task.spawn(function()
    end
 end)
 
--- Tele lên nóc map (500 studs cao) khi đủ 40 coins - KHÔNG reset ở đây
+-- FIXED: Tele lên nóc map CHỈ KHI trong ván + SỐNG + Đủ 40 coins
 task.spawn(function()
    while task.wait(1) do
-      if CoinsInCurrentRound >= 40 and isInRound() then
+      if CoinsInCurrentRound >= 40 and isInRound() and isAlive() then
          local hrp = getHRP()
          if hrp then
-            hrp.CFrame = CFrame.new(0, 500, 0)  -- Nóc map cao hơn để trốn chắc chắn
+            hrp.CFrame = CFrame.new(0, 500, 0)  -- Nóc map cao để trốn
          end
       end
    end
