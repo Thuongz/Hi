@@ -23,13 +23,13 @@ local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0 / 40")
 local EXPLabel = Tab:CreateLabel("Rounds Completed: 0")
 
 Tab:CreateToggle({
-   Name = "🚀 Auto Farm Coins (Tránh Sheriff & Murder 100m - 2.2s/coin - CHỈ TRONG VÁN)",
+   Name = "🚀 Auto Farm Coins (Tránh Sheriff & Murder 100m - 2.0s/coin - CHỈ TRONG VÁN)",
    CurrentValue = false,
    Callback = function(v) getgenv().AutoFarmCoins = v end
 })
 
 Tab:CreateToggle({
-   Name = "⚡ Auto Farm EXP (Kill All sau 40 coins)",
+   Name = "⚡ Auto Farm EXP (Tele nóc Innocent/Sheriff + Kill Murderer sau 40 coins)",
    CurrentValue = false,
    Callback = function(v) getgenv().AutoFarmEXP = v end
 })
@@ -100,7 +100,6 @@ local function getCoins()
    return coins
 end
 
--- FIXED: Tránh cả Murderer + Sheriff
 local function getDangerousPlayers()
    local dangerous = {}
    for _, p in Players:GetPlayers() do
@@ -126,35 +125,28 @@ task.spawn(function()
    end
 end)
 
--- FIXED: CHỈ TELE TRONG VÁN + SỐNG + Tránh Sheriff & Murder ≥100m + 2.2s/coin
+-- Auto Farm Coins: 2.0s/coin - DỪNG khi >=40
 task.spawn(function()
-   local recentlyTeleported = {}  -- Cache vị trí coin đã tele gần đây
+   local recentlyTeleported = {}
 
    while task.wait(0.1) do
-      -- KIỂM TRA CHẶT CHẼ: Phải trong ván + SỐNG + Bật farm
       if not getgenv().AutoFarmCoins or not isInRound() or not isAlive() then 
          continue 
       end
       
-      -- DỪNG NHẶT COIN KHI ĐỦ 40
       if CoinsInCurrentRound >= 40 then
          task.wait(1)
          continue
       end
       
       local hrp = getHRP()
-      if not hrp then 
-         continue 
-      end
+      if not hrp then continue end
 
       local coins = getCoins()
-      if #coins == 0 then 
-         continue 
-      end
+      if #coins == 0 then continue end
 
       local dangerous = getDangerousPlayers()
 
-      -- Lọc bỏ coin cũ đã tele gần đây
       local validCoins = {}
       for _, coin in pairs(coins) do
          local tooRecent = false
@@ -173,11 +165,8 @@ task.spawn(function()
          end
       end
 
-      if #validCoins == 0 then
-         continue
-      end
+      if #validCoins == 0 then continue end
 
-      -- Sort ưu tiên an toàn ≥100m trước (Sheriff + Murder), sau đó gần nhất
       table.sort(validCoins, function(a, b)
          local distA = (hrp.Position - a.Position).Magnitude
          local distB = (hrp.Position - b.Position).Magnitude
@@ -195,26 +184,23 @@ task.spawn(function()
       end)
 
       local coin = validCoins[1]
-      if not coin or not coin.Parent then 
-         continue 
-      end
+      if not coin or not coin.Parent then continue end
 
       local minDistToDanger = math.huge
       for _, d in pairs(dangerous) do
          minDistToDanger = math.min(minDistToDanger, (coin.Position - d.Position).Magnitude)
       end
 
-      -- Chỉ tele nếu coin cách Sheriff/Murder ≥ 100 studs
       if minDistToDanger >= 100 then
          hrp.Velocity = Vector3.new(0,0,0)
          hrp.CFrame = CFrame.new(coin.Position)
          
          table.insert(recentlyTeleported, { pos = coin.Position, time = tick() })
          
-         task.wait(0.4)         -- Delay đầu: 0.4s
+         task.wait(0.3)
          
          local wasAlive = coin.Parent
-         task.wait(1.8)         -- Delay sau: 1.8s → TỔNG 2.2s/coin
+         task.wait(1.7)
          
          if wasAlive and not coin.Parent then
             TotalCoins += 1
@@ -228,43 +214,51 @@ task.spawn(function()
    end
 end)
 
--- FIXED: Tele lên nóc map CHỈ KHI trong ván + SỐNG + Đủ 40 coins
+-- FIXED: MỘT LOOP THỐNG NHẤT - Tele nóc (Innocent/Sheriff) HOẶC Kill All (Murderer) khi >=40 coins
 task.spawn(function()
-   while task.wait(1) do
-      if CoinsInCurrentRound >= 40 and isInRound() and isAlive() then
+   while task.wait(0.5) do
+      if not getgenv().AutoFarmEXP or not isInRound() or not isAlive() then continue end
+      
+      if CoinsInCurrentRound >= 40 then
+         local myRole = getPlayerRole(player)
          local hrp = getHRP()
-         if hrp then
-            hrp.CFrame = CFrame.new(0, 500, 0)  -- Nóc map cao để trốn
-         end
-      end
-   end
-end)
+         if not hrp then continue end
 
-task.spawn(function()
-   while task.wait(1) do
-      if getgenv().AutoFarmEXP and CoinsInCurrentRound >= 40 and player.Character and player.Character.Humanoid.Health > 0 then
-         local knife = player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
-         if knife and knife:FindFirstChild("Handle") then
-            if knife.Parent == player.Backpack then knife.Parent = player.Character end
-            for _, p in Players:GetPlayers() do
-               if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
-                  local target = p.Character.HumanoidRootPart
-                  local hrp = getHRP()
-                  if hrp then
+         if myRole == "Murderer" then
+            -- KILL ALL
+            local knife = player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
+            if knife and knife:FindFirstChild("Handle") then
+               if knife.Parent == player.Backpack then
+                  knife.Parent = player.Character
+               end
+               
+               local killedAnyone = false
+               for _, p in Players:GetPlayers() do
+                  if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                     local target = p.Character.HumanoidRootPart
                      hrp.CFrame = target.CFrame * CFrame.new(0, 0, -2.5)
-                     task.wait(0.1)
+                     task.wait(0.05)
                      local handle = knife.Handle
                      firetouchinterest(handle, target, 0)
-                     task.wait(0.1)
+                     task.wait(0.05)
                      firetouchinterest(handle, target, 1)
+                     killedAnyone = true
                   end
                end
+               
+               if killedAnyone then
+                  TotalRounds += 1
+                  EXPLabel:Set("Rounds Completed: " .. TotalRounds)
+               end
             end
-            TotalRounds += 1
-            EXPLabel:Set("Rounds Completed: " .. TotalRounds)
-            CoinsInCurrentRound = 0
-            RoundCoinLabel:Set("Coins in Round: 0 / 40")
+         else
+            -- TELE LÊN NÓC (Innocent hoặc Sheriff)
+            hrp.CFrame = CFrame.new(0, 500, 0)
          end
+         
+         -- RESET NGAY sau hành động để UI update và tránh loop
+         CoinsInCurrentRound = 0
+         RoundCoinLabel:Set("Coins in Round: 0 / 40")
       end
    end
 end)
