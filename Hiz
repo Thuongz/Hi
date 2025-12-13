@@ -23,7 +23,7 @@ local RoundCoinLabel = Tab:CreateLabel("Coins in Round: 0 / 40")
 local EXPLabel = Tab:CreateLabel("Rounds Completed: 0")
 
 Tab:CreateToggle({
-   Name = "🚀 Auto Farm Coins (Tránh Murder 90m - 1.9s/coin - CoinContainer)",
+   Name = "🚀 Auto Farm Coins (Tránh Murder 90m - 2.2s/coin - CoinContainer)",
    CurrentValue = false,
    Callback = function(v) getgenv().AutoFarmCoins = v end
 })
@@ -118,13 +118,19 @@ task.spawn(function()
    end
 end)
 
--- ĐÃ CHỈNH: Tốc độ 1.9s/coin + Tránh Murder ≥ 90 studs
+-- FIXED: 2.2s/coin + DỪNG FARM COINS khi >=40 + Tele nóc map
 task.spawn(function()
    local recentlyTeleported = {}  -- Cache vị trí coin đã tele gần đây
 
    while task.wait(0.1) do
       if not getgenv().AutoFarmCoins or not isInRound() then 
          continue 
+      end
+      
+      -- DỪNG NHẶT COIN KHI ĐỦ 40
+      if CoinsInCurrentRound >= 40 then
+         task.wait(1)
+         continue
       end
       
       local hrp = getHRP()
@@ -162,7 +168,7 @@ task.spawn(function()
          continue
       end
 
-      -- Sort ưu tiên an toàn trước, sau đó gần nhất
+      -- Sort ưu tiên an toàn ≥90m trước, sau đó gần nhất
       table.sort(validCoins, function(a, b)
          local distA = (hrp.Position - a.Position).Magnitude
          local distB = (hrp.Position - b.Position).Magnitude
@@ -189,17 +195,16 @@ task.spawn(function()
          minDistToMurder = math.min(minDistToMurder, (coin.Position - m.Position).Magnitude)
       end
 
-      -- Chỉ tele nếu coin cách Murderer ≥ 90 studs
       if minDistToMurder >= 90 then
          hrp.Velocity = Vector3.new(0,0,0)
          hrp.CFrame = CFrame.new(coin.Position)
          
          table.insert(recentlyTeleported, { pos = coin.Position, time = tick() })
          
-         task.wait(0.3)         -- Tăng nhẹ delay đầu để ổn định hơn
+         task.wait(0.4)         -- Delay đầu: 0.4s
          
          local wasAlive = coin.Parent
-         task.wait(1.6)         -- Tổng delay sau tele: 0.3 + 1.6 = 1.9 giây/coin
+         task.wait(1.8)         -- Delay sau: 1.8s → TỔNG 2.2s/coin
          
          if wasAlive and not coin.Parent then
             TotalCoins += 1
@@ -213,17 +218,13 @@ task.spawn(function()
    end
 end)
 
+-- Tele lên nóc map (500 studs cao) khi đủ 40 coins - KHÔNG reset ở đây
 task.spawn(function()
    while task.wait(1) do
       if CoinsInCurrentRound >= 40 and isInRound() then
-         local myRole = getPlayerRole(player)
-         if myRole == "Innocent" then
-            local hrp = getHRP()
-            if hrp then
-               hrp.CFrame = CFrame.new(0, 350, 0)
-            end
-            CoinsInCurrentRound = 0
-            RoundCoinLabel:Set("Coins in Round: 0 / 40")
+         local hrp = getHRP()
+         if hrp then
+            hrp.CFrame = CFrame.new(0, 500, 0)  -- Nóc map cao hơn để trốn chắc chắn
          end
       end
    end
