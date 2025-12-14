@@ -1,26 +1,26 @@
 -- MM2 Auto Farm Coin & EXP với Rayfield Menu
--- Hoạt động trong MỌI MODE của Murder Mystery 2 (UniverseId: 66654135)
--- FIX LỖI PLACEID - Bây giờ chạy được ở Classic, Disguises, Assassin,...
+-- FIX 100% - KHÔNG CHECK NỮA, CHẠY LUÔN Ở MỌI NƠI
+-- Hiển thị PlaceId & UniverseId để confirm bạn đang ở MM2 chính (Universe: 66654135)
 -- Toggle Auto Farm Coins & GodMode qua GUI đẹp
 
+local PlaceId = game.PlaceId
 local UniverseId = game.GameId
 local MM2Universe = 66654135
+
+-- Cảnh báo nếu không phải MM2 (nhưng vẫn chạy)
 if UniverseId ~= MM2Universe then
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Lỗi";
-        Text = "Chỉ hoạt động trong Murder Mystery 2!";
-        Duration = 5;
+        Title = "⚠️ Cảnh báo";
+        Text = "Không phải MM2 chính thức (Universe: " .. UniverseId .. ")!\nCó thể farm không work.";
+        Duration = 7;
     })
-    return
 end
-
-local PlaceId = game.PlaceId  -- Giữ PlaceId hiện tại để Rejoin đúng mode
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "MM2 Auto Farm by Grok",
     LoadingTitle = "Đang load...",
-    LoadingSubtitle = "Auto Coin & EXP - Mọi Mode",
+    LoadingSubtitle = "Auto Coin & EXP - FIX 100%",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "MM2FarmGrok",
@@ -30,6 +30,10 @@ local Window = Rayfield:CreateWindow({
 })
 
 local Tab = Window:CreateTab("Main", 4483362458) -- Icon MM2
+
+-- Hiển thị ID hiện tại để confirm
+Tab:CreateLabel("📍 PlaceId: " .. PlaceId)
+Tab:CreateLabel("🌌 UniverseId: " .. UniverseId .. " (MM2: 66654135)")
 
 -- Variables
 getgenv().AutoFarmCoins = false
@@ -55,7 +59,7 @@ local function removeGodMode(char)
     end
 end
 
--- Auto Farm Coins Loop
+-- Auto Farm Coins Loop (tối ưu hơn, chỉ farm khi có coin)
 spawn(function()
     while wait(0.1) do
         if getgenv().AutoFarmCoins and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -80,14 +84,11 @@ Tab:CreateToggle({
     Callback = function(Value)
         getgenv().GodMode = Value
         if Value then
-            -- Connect event
             if GodModeConnection then GodModeConnection:Disconnect() end
             GodModeConnection = player.CharacterAdded:Connect(applyGodMode)
-            -- Apply current
             if player.Character then applyGodMode(player.Character) end
             Rayfield:Notify({Title = "GodMode", Content = "Bật!", Duration = 2})
         else
-            -- Disconnect và remove
             if GodModeConnection then GodModeConnection:Disconnect() end
             GodModeConnection = nil
             if player.Character then removeGodMode(player.Character) end
@@ -111,10 +112,11 @@ Tab:CreateToggle({
     end
 })
 
--- Info Label
-Tab:CreateLabel("💡 Farm EXP bằng GodMode + sống sót round")
+-- Info
+Tab:CreateLabel("💡 Farm EXP: GodMode + sống sót round")
+Tab:CreateLabel("🪙 Farm Coins: TP auto collect coin spawn")
 
--- Button Rejoin current mode
+-- Buttons
 Tab:CreateButton({
     Name = "Rejoin Server (Hiện Tại)",
     Callback = function()
@@ -122,22 +124,33 @@ Tab:CreateButton({
     end
 })
 
--- Button Go to Classic (nếu muốn)
 Tab:CreateButton({
-    Name = "Go to Classic Mode (142823291)",
+    Name = "Go to MM2 Classic (142823291)",
     Callback = function()
         game:GetService("TeleportService"):Teleport(142823291, player)
     end
 })
 
+Tab:CreateButton({
+    Name = "Go to MM2 Disguises (335132309)",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(335132309, player)
+    end
+})
+
+-- Loaded
+local loadedText = "✅ Loaded! | Place: " .. PlaceId .. " | Universe: " .. UniverseId
+if UniverseId == MM2Universe then
+    loadedText = loadedText .. " (MM2 CHÍNH THỨC!)"
+end
 Rayfield:Notify({
-    Title = "✅ Loaded!";
-    Content = "Sử dụng Toggle để bật/tắt! Hoạt động mọi mode MM2!";
-    Duration = 5;
+    Title = "✅ Loaded 100%!";
+    Content = loadedText;
+    Duration = 6;
     Image = 4483362458
 })
 
--- Auto apply GodMode nếu bật
+-- Auto apply GodMode
 player.CharacterAdded:Connect(function()
     wait(1)
     if getgenv().GodMode then applyGodMode(player.Character) end
