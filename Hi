@@ -1,42 +1,132 @@
--- Auto Farm Coin & EXP cho MM2 (tách từ Eclipse Hub style)
--- Toggle bằng cách set getgenv().AutoFarmCoins = false/true
--- GodMode giúp farm EXP bằng cách sống sót qua round để nhận XP
+-- MM2 Auto Farm Coin & EXP với Rayfield Menu
+-- Chỉ hoạt động trong Murder Mystery 2 (PlaceId: 142823291)
+-- Toggle Auto Farm Coins & GodMode qua GUI đẹp
 
-getgenv().AutoFarmCoins = true  -- Bật/Tắt farm coin
-getgenv().GodMode = true       -- Bật GodMode để farm EXP
+local PlaceId = game.PlaceId
+if PlaceId ~= 142823291 then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Lỗi";
+        Text = "Script chỉ dùng cho MM2!";
+        Duration = 3;
+    })
+    return
+end
 
--- Farm Coin (TP + Collect tự động)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+    Name = "MM2 Auto Farm by Grok",
+    LoadingTitle = "Đang load...",
+    LoadingSubtitle = "Auto Coin & EXP",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "MM2FarmGrok",
+        FileName = "RayfieldConfig"
+    },
+    KeySystem = false
+})
+
+local Tab = Window:CreateTab("Main", 4483362458) -- Icon MM2
+
+-- Variables
+getgenv().AutoFarmCoins = false
+getgenv().GodMode = false
+local player = game.Players.LocalPlayer
+local GodModeConnection
+
+-- Function apply GodMode
+local function applyGodMode(char)
+    local humanoid = char:WaitForChild("Humanoid", 5)
+    if humanoid and getgenv().GodMode then
+        humanoid.MaxHealth = math.huge
+        humanoid.Health = math.huge
+    end
+end
+
+-- Function remove GodMode
+local function removeGodMode(char)
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.MaxHealth = 100
+        humanoid.Health = math.huge -- Keep full health but normal max
+    end
+end
+
+-- Auto Farm Coins Loop
 spawn(function()
     while wait(0.1) do
-        if getgenv().AutoFarmCoins then
+        if getgenv().AutoFarmCoins and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v.Name == "CoinContainer" and v:FindFirstChild("Coin_Server") and v.Coin_Server:FindFirstChild("Coin") then
-                    local player = game.Players.LocalPlayer
-                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        player.Character.HumanoidRootPart.CFrame = v.Coin_Server.Coin.CFrame * CFrame.new(0, 3, 0)
-                        firetouchinterest(player.Character.HumanoidRootPart, v.Coin_Server.Coin, 0)
-                        wait()
-                        firetouchinterest(player.Character.HumanoidRootPart, v.Coin_Server.Coin, 1)
-                    end
+                    local hrp = player.Character.HumanoidRootPart
+                    hrp.CFrame = v.Coin_Server.Coin.CFrame * CFrame.new(0, 3, 0)
+                    firetouchinterest(hrp, v.Coin_Server.Coin, 0)
+                    wait()
+                    firetouchinterest(hrp, v.Coin_Server.Coin, 1)
                 end
             end
         end
     end
 end)
 
--- GodMode (farm EXP an toàn)
-local player = game.Players.LocalPlayer
-local function applyGodMode(char)
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if humanoid then
-        humanoid.MaxHealth = math.huge
-        humanoid.Health = math.huge
+-- GodMode Toggle
+Tab:CreateToggle({
+    Name = "GodMode (Farm EXP an toàn)",
+    CurrentValue = false,
+    Flag = "GodModeToggle",
+    Callback = function(Value)
+        getgenv().GodMode = Value
+        if Value then
+            -- Connect event
+            if GodModeConnection then GodModeConnection:Disconnect() end
+            GodModeConnection = player.CharacterAdded:Connect(applyGodMode)
+            -- Apply current
+            if player.Character then applyGodMode(player.Character) end
+            Rayfield:Notify({Title = "GodMode", Content = "Bật!", Duration = 2})
+        else
+            -- Disconnect và remove
+            if GodModeConnection then GodModeConnection:Disconnect() end
+            GodModeConnection = nil
+            if player.Character then removeGodMode(player.Character) end
+            Rayfield:Notify({Title = "GodMode", Content = "Tắt!", Duration = 2})
+        end
     end
-end
+})
 
-player.CharacterAdded:Connect(applyGodMode)
-if player.Character then
-    applyGodMode(player.Character)
-end
+-- Auto Farm Coins Toggle
+Tab:CreateToggle({
+    Name = "Auto Farm Coins (TP + Collect)",
+    CurrentValue = false,
+    Flag = "AutoFarmCoinsToggle",
+    Callback = function(Value)
+        getgenv().AutoFarmCoins = Value
+        Rayfield:Notify({
+            Title = "Auto Farm Coins";
+            Content = Value and "Bật!" or "Tắt!";
+            Duration = 2
+        })
+    end
+})
 
-print("✅ Auto Farm Coin & EXP MM2 loaded! Set getgenv().AutoFarmCoins = false để tắt.")
+-- Info Label
+Tab:CreateLabel("💡 Farm EXP bằng GodMode + sống sót round")
+
+-- Button Rejoin (nếu cần reset round)
+Tab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(PlaceId, player)
+    end
+})
+
+Rayfield:Notify({
+    Title = "✅ Loaded!";
+    Content = "Sử dụng Toggle để bật/tắt!";
+    Duration = 4;
+    Image = 4483362458
+})
+
+-- Auto connect GodMode nếu toggle default on (nhưng default off)
+player.CharacterAdded:Connect(function()
+    wait(1)
+    if getgenv().GodMode then applyGodMode(player.Character) end
+end)
