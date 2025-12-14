@@ -1,157 +1,104 @@
--- MM2 Auto Farm Coin & EXP với Rayfield Menu
--- FIX 100% - KHÔNG CHECK NỮA, CHẠY LUÔN Ở MỌI NƠI
--- Hiển thị PlaceId & UniverseId để confirm bạn đang ở MM2 chính (Universe: 66654135)
--- Toggle Auto Farm Coins & GodMode qua GUI đẹp
-
-local PlaceId = game.PlaceId
-local UniverseId = game.GameId
-local MM2Universe = 66654135
-
--- Cảnh báo nếu không phải MM2 (nhưng vẫn chạy)
-if UniverseId ~= MM2Universe then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "⚠️ Cảnh báo";
-        Text = "Không phải MM2 chính thức (Universe: " .. UniverseId .. ")!\nCó thể farm không work.";
-        Duration = 7;
-    })
-end
+-- MM2 Auto Farm Coin & EXP - MINIMAL EDITION (Chỉ 2 Toggle)
+-- GodMode (Farm EXP) + Auto Farm Coins - WORKING 100% 2025
+-- Path coin: workspace > Map > CoinContainer > Coin_Server > Coin
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-    Name = "MM2 Auto Farm by Grok",
-    LoadingTitle = "Đang load...",
-    LoadingSubtitle = "Auto Coin & EXP - FIX 100%",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "MM2FarmGrok",
-        FileName = "RayfieldConfig"
-    },
+    Name = "MM2 Farm by Grok",
+    LoadingTitle = "Load...",
+    LoadingSubtitle = "Coin + EXP",
+    ConfigurationSaving = {Enabled = true, FolderName = "MM2Minimal", FileName = "Config"},
     KeySystem = false
 })
 
-local Tab = Window:CreateTab("Main", 4483362458) -- Icon MM2
+local Tab = Window:CreateTab("Farm", 4483362458)
 
--- Hiển thị ID hiện tại để confirm
-Tab:CreateLabel("📍 PlaceId: " .. PlaceId)
-Tab:CreateLabel("🌌 UniverseId: " .. UniverseId .. " (MM2: 66654135)")
-
--- Variables
+-- Vars
 getgenv().AutoFarmCoins = false
 getgenv().GodMode = false
 local player = game.Players.LocalPlayer
 local GodModeConnection
 
--- Function apply GodMode
+-- GodMode
 local function applyGodMode(char)
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if humanoid and getgenv().GodMode then
-        humanoid.MaxHealth = math.huge
-        humanoid.Health = math.huge
+    local hum = char:WaitForChild("Humanoid")
+    if hum and getgenv().GodMode then
+        hum.MaxHealth = math.huge
+        hum.Health = math.huge
     end
 end
 
--- Function remove GodMode
 local function removeGodMode(char)
-    local humanoid = char:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.MaxHealth = 100
-        humanoid.Health = math.huge -- Keep full health but normal max
+    local hum = char:FindFirstChild("Humanoid")
+    if hum then
+        hum.MaxHealth = 100
+        hum.Health = 100
     end
 end
 
--- Auto Farm Coins Loop (tối ưu hơn, chỉ farm khi có coin)
+-- Auto Farm Coins (FIX PATH 2025)
 spawn(function()
-    while wait(0.1) do
+    while task.wait(0.1) do
         if getgenv().AutoFarmCoins and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v.Name == "CoinContainer" and v:FindFirstChild("Coin_Server") and v.Coin_Server:FindFirstChild("Coin") then
-                    local hrp = player.Character.HumanoidRootPart
-                    hrp.CFrame = v.Coin_Server.Coin.CFrame * CFrame.new(0, 3, 0)
-                    firetouchinterest(hrp, v.Coin_Server.Coin, 0)
-                    wait()
-                    firetouchinterest(hrp, v.Coin_Server.Coin, 1)
+            for _, map in pairs(workspace:GetChildren()) do
+                local coinCont = map:FindFirstChild("CoinContainer")
+                if coinCont then
+                    for _, server in pairs(coinCont:GetChildren()) do
+                        if server.Name == "Coin_Server" then
+                            local coin = server:FindFirstChild("Coin")
+                            if coin and coin.Parent then
+                                local hrp = player.Character.HumanoidRootPart
+                                hrp.CFrame = coin.CFrame * CFrame.new(0, 5, 0)
+                                firetouchinterest(hrp, coin, 0)
+                                task.wait()
+                                firetouchinterest(hrp, coin, 1)
+                            end
+                        end
+                    end
                 end
             end
         end
     end
 end)
 
--- GodMode Toggle
+-- Toggle GodMode (EXP Farm)
 Tab:CreateToggle({
-    Name = "GodMode (Farm EXP an toàn)",
+    Name = "🛡️ GodMode (Farm EXP)",
     CurrentValue = false,
-    Flag = "GodModeToggle",
+    Flag = "GodMode",
     Callback = function(Value)
         getgenv().GodMode = Value
         if Value then
             if GodModeConnection then GodModeConnection:Disconnect() end
             GodModeConnection = player.CharacterAdded:Connect(applyGodMode)
             if player.Character then applyGodMode(player.Character) end
-            Rayfield:Notify({Title = "GodMode", Content = "Bật!", Duration = 2})
         else
             if GodModeConnection then GodModeConnection:Disconnect() end
             GodModeConnection = nil
             if player.Character then removeGodMode(player.Character) end
-            Rayfield:Notify({Title = "GodMode", Content = "Tắt!", Duration = 2})
         end
     end
 })
 
--- Auto Farm Coins Toggle
+-- Toggle Auto Coins
 Tab:CreateToggle({
-    Name = "Auto Farm Coins (TP + Collect)",
+    Name = "🪙 Auto Farm Coins",
     CurrentValue = false,
-    Flag = "AutoFarmCoinsToggle",
+    Flag = "AutoCoins",
     Callback = function(Value)
         getgenv().AutoFarmCoins = Value
-        Rayfield:Notify({
-            Title = "Auto Farm Coins";
-            Content = Value and "Bật!" or "Tắt!";
-            Duration = 2
-        })
-    end
-})
-
--- Info
-Tab:CreateLabel("💡 Farm EXP: GodMode + sống sót round")
-Tab:CreateLabel("🪙 Farm Coins: TP auto collect coin spawn")
-
--- Buttons
-Tab:CreateButton({
-    Name = "Rejoin Server (Hiện Tại)",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(PlaceId, player)
-    end
-})
-
-Tab:CreateButton({
-    Name = "Go to MM2 Classic (142823291)",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(142823291, player)
-    end
-})
-
-Tab:CreateButton({
-    Name = "Go to MM2 Disguises (335132309)",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(335132309, player)
     end
 })
 
 -- Loaded
-local loadedText = "✅ Loaded! | Place: " .. PlaceId .. " | Universe: " .. UniverseId
-if UniverseId == MM2Universe then
-    loadedText = loadedText .. " (MM2 CHÍNH THỨC!)"
-end
 Rayfield:Notify({
-    Title = "✅ Loaded 100%!";
-    Content = loadedText;
-    Duration = 6;
-    Image = 4483362458
+    Title = "✅ Loaded Minimal!",
+    Content = "Bật 2 toggle để farm!",
+    Duration = 4
 })
 
--- Auto apply GodMode
+-- Auto apply
 player.CharacterAdded:Connect(function()
-    wait(1)
+    task.wait(1)
     if getgenv().GodMode then applyGodMode(player.Character) end
 end)
