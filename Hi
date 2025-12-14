@@ -127,7 +127,7 @@ task.spawn(function()
    end
 end)
 
--- Auto Farm Coins
+-- Auto Farm Coins (giữ nguyên)
 task.spawn(function()
    local recentlyTeleported = {}
 
@@ -216,7 +216,7 @@ task.spawn(function()
    end
 end)
 
--- Auto Farm EXP (Thay đổi: Trốn xa Murderer thay vì tele lên nóc)
+-- Auto Farm EXP (FIX KILL ALL MẠNH HƠN)
 task.spawn(function()
    while task.wait(0.5) do
       if not getgenv().AutoFarmEXP or not isInRound() or not isAlive() then continue end
@@ -227,23 +227,38 @@ task.spawn(function()
          if not hrp then continue end
 
          if myRole == "Murderer" then
-            -- Kill All khi là Murderer
-            local knife = player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
-            if knife and knife:FindFirstChild("Handle") then
+            -- Tìm knife chính xác hơn
+            local knife = player.Character:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
+            if knife and string.find(knife.Name:lower(), "knife") and knife:FindFirstChild("Handle") then
                if knife.Parent == player.Backpack then
                   knife.Parent = player.Character
+                  task.wait(0.2)  -- Đợi equip
                end
                
+               local handle = knife.Handle
                local killedAnyone = false
+               
                for _, p in Players:GetPlayers() do
                   if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
                      local target = p.Character.HumanoidRootPart
-                     hrp.CFrame = target.CFrame * CFrame.new(0, 0, -2.5)
-                     task.wait(0.05)
-                     local handle = knife.Handle
-                     firetouchinterest(handle, target, 0)
-                     task.wait(0.05)
-                     firetouchinterest(handle, target, 1)
+                     
+                     -- Tele sát hơn
+                     hrp.CFrame = target.CFrame * CFrame.new(0, 0, -1.5)
+                     task.wait(0.1)
+                     
+                     -- Fire nhiều lần để chắc chắn
+                     for i = 1, 4 do
+                        firetouchinterest(handle, target, 0)
+                        task.wait(0.05)
+                        firetouchinterest(handle, target, 1)
+                        task.wait(0.05)
+                     end
+                     
+                     -- Nếu knife có ClickDetector (một số custom)
+                     if handle:FindFirstChildOfClass("ClickDetector") then
+                        fireclickdetector(handle:FindFirstChildOfClass("ClickDetector"))
+                     end
+                     
                      killedAnyone = true
                   end
                end
@@ -254,7 +269,7 @@ task.spawn(function()
                end
             end
          else
-            -- Innocent/Sheriff: Trốn xa Murderer (>=100m+)
+            -- Phần trốn xa Murderer (giữ nguyên)
             local murdererRoot = nil
             for _, p in Players:GetPlayers() do
                if p ~= player and getPlayerRole(p) == "Murderer" and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -275,16 +290,15 @@ task.spawn(function()
                hrp.Velocity = Vector3.new(0,0,0)
                hrp.CFrame = CFrame.new(safePos)
             else
-               -- Nếu không tìm thấy Murderer, tele lên cao dự phòng
                hrp.CFrame = CFrame.new(hrp.Position.X, hrp.Position.Y + 200, hrp.Position.Z)
             end
          end
          
-         -- Reset bộ đếm
+         -- Reset
          CoinsInCurrentRound = 0
          RoundCoinLabel:Set("Coins in Round: 0 / 40")
          
-         task.wait(2)  -- Tránh teleport quá nhanh
+         task.wait(2)
       end
    end
 end)
