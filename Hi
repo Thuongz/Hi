@@ -1,302 +1,166 @@
--- Eclipse Hub MM2 Port to Rayfield - FULL FEATURES 100% WORKING 2025
--- Tabs: Visuals, Player, Combat, Farm - All Implemented!
--- Coin Path FIXED: workspace.Map/spawnstuff > CoinContainer > Coin_Server > Coin
--- ESP/Chams/God/Fly/Noclip/SilentAim/KillAura/AutoFarm ALL WORK!
+-- MM2 Auto Farm từ Onyx Hub (chức năng chính: farm coins, godlies, event items)
+-- Thêm vào Rayfield menu. Copy paste vào executor (KRNL, Fluxus, etc.)
+-- **CẢNH BÁO**: Có thể bị ban acc Roblox. Dùng alt acc!
+
+getgenv().AutoFarmEnabled = false
+getgenv().WalkSpeed = 16
+getgenv().AntiAFK = false
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
-local camera = workspace.CurrentCamera
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Window = Rayfield:CreateWindow({
-    Name = "Eclipse MM2 Hub - Rayfield Port",
-    LoadingTitle = "Loading Eclipse Features...",
-    LoadingSubtitle = "Full MM2 2025 - 100% Fixed",
-    ConfigurationSaving = {Enabled = true, FolderName = "EclipseMM2Rayfield", FileName = "Config"},
-    KeySystem = false
-})
-
-local VisualTab = Window:CreateTab("👁️ Visuals", 4483362458)
-local PlayerTab = Window:CreateTab("🏃 Player", 4483362458)
-local CombatTab = Window:CreateTab("⚔️ Combat", 4483362458)
-local FarmTab = Window:CreateTab("🪙 Farm", 4483362458)
-
--- Vars
-getgenv().Toggles = {
-    ESPAll = false, ESPMurder = false, ESPSheriff = false,
-    ChamsAll = false, ChamsMurder = false, ChamsSheriff = false, ChamsCoins = false,
-    GunESP = false,
-    Fly = false, ClickTP = false, InfJump = false, Noclip = false,
-    GodMode = false, Invisible = false, XRay = false,
-    AutoGrabGun = false, SilentAim = false, KillAura = false, RapidKnife = false,
-    AutoFarmCoins = false, AutoRejoin = false
-}
-getgenv().Sliders = {FlySpeed = 50, WalkSpeed = 16, JumpPower = 50}
-
-local Connections = {}
-local Highlights = {}
-local BodyVelocity = nil
-
--- Helper: Get Role
-local function getRole(plr)
-    if plr.Character then
-        local tool = plr.Character:FindFirstChildOfClass("Tool") or plr.Backpack:FindFirstChildOfClass("Tool")
-        if tool and tool.Name == "Knife" then return "Murderer" end
-        if tool and string.find(tool.Name, "Gun") then return "Sheriff" end
-    end
-    return "Innocent"
-end
-
--- ESP/Chams
-local function createHighlight(plr, color)
-    local highlight = Instance.new("Highlight")
-    highlight.Parent = plr.Character
-    highlight.FillColor = color
-    highlight.OutlineColor = color
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    Highlights[plr] = highlight
-end
-
-local function updateESP()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local role = getRole(plr)
-            local color = Color3.new(1,1,1)
-            if getgenv().Toggles.ESPMurder and role == "Murderer" then color = Color3.new(1,0,0) end
-            if getgenv().Toggles.ESPSheriff and role == "Sheriff" then color = Color3.new(0,0,1) end
-            if getgenv().Toggles.ESPAll then color = Color3.new(0,1,0) end
-            if Highlights[plr] then Highlights[plr].FillColor = color end
-        end
-    end
-end
-
--- Chams Loop
+-- Auto Farm Loop (farm nearest coin/gun/knife/event item)
 spawn(function()
-    while task.wait(0.1) do
-        if getgenv().Toggles.ChamsAll or getgenv().Toggles.ChamsMurder or getgenv().Toggles.ChamsSheriff or getgenv().Toggles.ChamsCoins then
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr.Character then
-                    local role = getRole(plr)
-                    local enable = false
-                    if getgenv().Toggles.ChamsAll then enable = true
-                    elseif role == "Murderer" and getgenv().Toggles.ChamsMurder then enable = true
-                    elseif role == "Sheriff" and getgenv().Toggles.ChamsSheriff then enable = true end
-                    for _, part in pairs(plr.Character:GetChildren()) do
-                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                            part.Transparency = enable and 0.5 or 1
-                            part.Material = enable and Enum.Material.Neon or Enum.Material.Plastic
+    while true do
+        wait(0.05)
+        if getgenv().AutoFarmEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function()
+                local char = player.Character
+                local root = char.HumanoidRootPart
+                local coins = {}
+                
+                -- Tìm tất cả items: coins, eggs, beachball, snowtoken, godlies, guns
+                for _, v in pairs(workspace:GetChildren()) do
+                    local name = string.lower(v.Name)
+                    if (name:find("coin") or name:find("egg") or name:find("beachball") or name:find("snowtoken") or 
+                        name:find("candy") or name:find("knife_") or name:find("gun")) and 
+                        v:IsA("Model") and v.PrimaryPart then
+                        local dist = (root.Position - v.PrimaryPart.Position).Magnitude
+                        if dist < 500 then  -- Giới hạn range để tránh lag
+                            table.insert(coins, {model = v, dist = dist, pos = v.PrimaryPart.CFrame})
                         end
                     end
                 end
-            end
-            -- Coins Chams
-            for _, cont in pairs(workspace:GetDescendants()) do
-                if cont.Name == "CoinContainer" and getgenv().Toggles.ChamsCoins then
-                    for _, server in pairs(cont:GetChildren()) do
-                        if server.Name == "Coin_Server" then
-                            local coin = server:FindFirstChild("Coin")
-                            if coin then
-                                coin.Transparency = 0.3
-                                coin.Material = Enum.Material.Neon
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- Gun ESP
-spawn(function()
-    while task.wait(0.5) do
-        if getgenv().Toggles.GunESP then
-            local gun = workspace:FindFirstChild("GunDrop")
-            if gun and not Highlights[gun] then
-                local h = Instance.new("Highlight", gun)
-                h.FillColor = Color3.new(1,1,0)
-                Highlights[gun] = h
-            end
-        end
-    end
-end)
-
--- Visual Toggles
-VisualTab:CreateToggle({Name = "All ESP", CurrentValue = false, Callback = function(v) getgenv().Toggles.ESPAll = v end})
-VisualTab:CreateToggle({Name = "Murderer ESP", CurrentValue = false, Callback = function(v) getgenv().Toggles.ESPMurder = v end})
-VisualTab:CreateToggle({Name = "Sheriff ESP", CurrentValue = false, Callback = function(v) getgenv().Toggles.ESPSheriff = v end})
-VisualTab:CreateToggle({Name = "All Chams", CurrentValue = false, Callback = function(v) getgenv().Toggles.ChamsAll = v end})
-VisualTab:CreateToggle({Name = "Murderer Chams", CurrentValue = false, Callback = function(v) getgenv().Toggles.ChamsMurder = v end})
-VisualTab:CreateToggle({Name = "Sheriff Chams", CurrentValue = false, Callback = function(v) getgenv().Toggles.ChamsSheriff = v end})
-VisualTab:CreateToggle({Name = "Coin Chams", CurrentValue = false, Callback = function(v) getgenv().Toggles.ChamsCoins = v end})
-VisualTab:CreateToggle({Name = "Gun ESP", CurrentValue = false, Callback = function(v) getgenv().Toggles.GunESP = v end})
-
--- ESP Update Loop
-Connections.ESP = RunService.Heartbeat:Connect(updateESP)
-
--- Player Features
-local function applyGod(char)
-    local hum = char:WaitForChild("Humanoid")
-    hum.MaxHealth = math.huge
-    hum.Health = math.huge
-end
-
-PlayerTab:CreateToggle({
-    Name = "God Mode",
-    CurrentValue = false,
-    Callback = function(v)
-        getgenv().Toggles.GodMode = v
-        if v then
-            Connections.God = player.CharacterAdded:Connect(applyGod)
-            if player.Character then applyGod(player.Character) end
-        else
-            if Connections.God then Connections.God:Disconnect() end
-        end
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Fly",
-    CurrentValue = false,
-    Callback = function(v)
-        getgenv().Toggles.Fly = v
-        if v and player.Character then
-            BodyVelocity = Instance.new("BodyVelocity", player.Character.HumanoidRootPart)
-            BodyVelocity.MaxForce = Vector3.new(4000,4000,4000)
-            BodyVelocity.Velocity = Vector3.new(0,0,0)
-        elseif BodyVelocity then
-            BodyVelocity:Destroy()
-        end
-    end
-})
-
-PlayerTab:CreateSlider({Name = "Fly Speed", Min = 1, Max = 200, Default = 50, Callback = function(v) getgenv().Sliders.FlySpeed = v end})
-
--- Fly Loop
-spawn(function()
-    while task.wait() do
-        if getgenv().Toggles.Fly and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and BodyVelocity then
-            local cam = workspace.CurrentCamera.CFrame
-            local speed = getgenv().Sliders.FlySpeed
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then BodyVelocity.Velocity = cam.LookVector * speed end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then BodyVelocity.Velocity = -cam.LookVector * speed end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then BodyVelocity.Velocity = -cam.RightVector * speed end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then BodyVelocity.Velocity = cam.RightVector * speed end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then BodyVelocity.Velocity = Vector3.new(0,speed,0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then BodyVelocity.Velocity = Vector3.new(0,-speed,0) end
-        end
-    end
-end)
-
-PlayerTab:CreateToggle({Name = "Noclip", CurrentValue = false, Callback = function(v) getgenv().Toggles.Noclip = v end})
-
--- Noclip Loop
-Connections.Noclip = RunService.Stepped:Connect(function()
-    if getgenv().Toggles.Noclip and player.Character then
-        for _, part in pairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end)
-
-PlayerTab:CreateToggle({Name = "Infinite Jump", CurrentValue = false, Callback = function(v) getgenv().Toggles.InfJump = v end})
-Connections.InfJump = UserInputService.JumpRequest:Connect(function() if getgenv().Toggles.InfJump then player.Character.Humanoid:ChangeState("Jumping") end end)
-
-PlayerTab:CreateToggle({Name = "Click TP", CurrentValue = false, Callback = function(v) getgenv().Toggles.ClickTP = v end})
-Connections.ClickTP = mouse.Button1Down:Connect(function()
-    if getgenv().Toggles.ClickTP and player.Character then
-        player.Character.HumanoidRootPart.CFrame = mouse.Hit
-    end
-end)
-
-PlayerTab:CreateSlider({Name = "WalkSpeed", Min = 16, Max = 200, Default = 16, Callback = function(v)
-    getgenv().Sliders.WalkSpeed = v
-    if player.Character then player.Character.Humanoid.WalkSpeed = v end
-end})
-
-PlayerTab:CreateSlider({Name = "JumpPower", Min = 50, Max = 200, Default = 50, Callback = function(v)
-    getgenv().Sliders.JumpPower = v
-    if player.Character then player.Character.Humanoid.JumpPower = v end
-end})
-
-player.CharacterAdded:Connect(function(char)
-    char.ChildAdded:Wait()
-    char.Humanoid.WalkSpeed = getgenv().Sliders.WalkSpeed
-    char.Humanoid.JumpPower = getgenv().Sliders.JumpPower
-end)
-
--- Combat
-CombatTab:CreateToggle({Name = "Auto Grab Gun", CurrentValue = false, Callback = function(v) getgenv().Toggles.AutoGrabGun = v end})
-
-spawn(function()
-    while task.wait(0.5) do
-        if getgenv().Toggles.AutoGrabGun then
-            local gun = workspace:FindFirstChild("GunDrop")
-            if gun and player.Character then
-                player.Character.HumanoidRootPart.CFrame = gun.CFrame
-            end
-        end
-    end
-end)
-
-CombatTab:CreateToggle({Name = "Kill Aura (20 studs)", CurrentValue = false, Callback = function(v) getgenv().Toggles.KillAura = v end})
-
-spawn(function()
-    while task.wait(0.2) do
-        if getgenv().Toggles.KillAura then
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= player and plr.Character and plr.Character.HumanoidRootPart then
-                    local dist = (player.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
-                    if dist < 20 then
-                        plr.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-                    end
-                end
-            end
-        end
-    end
-end)
-
-CombatTab:CreateButton({Name = "Kill All", Callback = function()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            plr.Character.Humanoid.Health = 0
-        end
-    end
-end})
-
--- Farm
-FarmTab:CreateToggle({Name = "Auto Farm Coins (FIXED PATH)", CurrentValue = false, Callback = function(v) getgenv().Toggles.AutoFarmCoins = v end})
-
-spawn(function()
-    workspace.ChildAdded:Connect(function(child)
-        if child.Name == "CoinContainer" then
-            spawn(function()
-                repeat task.wait(0.1) until getgenv().Toggles.AutoFarmCoins
-                while child.Parent and getgenv().Toggles.AutoFarmCoins do
-                    for _, server in pairs(child:GetChildren()) do
-                        if server.Name == "Coin_Server" and server:FindFirstChild("Coin") then
-                            local coin = server.Coin
-                            local hrp = player.Character.HumanoidRootPart
-                            hrp.CFrame = coin.CFrame * CFrame.new(0,5,0)
-                            firetouchinterest(hrp, coin, 0)
-                            task.wait(0.1)
-                            firetouchinterest(hrp, coin, 1)
-                        end
-                    end
-                    task.wait(0.1)
+                
+                -- Sort nearest first
+                table.sort(coins, function(a, b) return a.dist < b.dist end)
+                
+                if #coins > 0 then
+                    root.CFrame = coins[1].pos * CFrame.new(0, 5, 0)  -- Teleport lên trên item
                 end
             end)
         end
-    end)
+        
+        -- WalkSpeed
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = getgenv().WalkSpeed
+        end
+    end
 end)
 
--- Loaded
-Rayfield:Notify({Title = "✅ Eclipse MM2 Loaded!", Content = "All features working 100%! Farm + Troll + Visuals", Duration = 5})
+-- Anti AFK
+spawn(function()
+    while true do
+        wait(60)  -- Mỗi 1 phút
+        if getgenv().AntiAFK then
+            local VirtualUser = game:GetService('VirtualUser')
+            game:GetService('Players').LocalPlayer.Idled:Connect(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
+            end)
+        end
+    end
+end)
 
-print("Eclipse MM2 Rayfield Port Loaded - Farm Away!")
+-- Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Onyx Hub - Auto Farm",
+    LoadingTitle = "MM2 Farm",
+    LoadingSubtitle = "Từ gumanba Onyx",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "OnyxMM2",
+        FileName = "AutoFarm"
+    },
+    Discord = {
+        Enabled = false
+    },
+    KeySystem = false
+})
+
+local FarmTab = Window:CreateTab("🤖 Auto Farm", 4483362458)
+local FarmSection = FarmTab:CreateSection("Chức năng Farm")
+
+FarmTab:CreateToggle({
+    Name = "Auto Farm (Coins/Godlies/Items/Event)",
+    CurrentValue = false,
+    Flag = "FarmToggle",
+    Callback = function(Value)
+        getgenv().AutoFarmEnabled = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Farm ON",
+                Content = "Farm nearest items tự động!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Farm OFF",
+                Content = "Dừng farm.",
+                Duration = 2
+            })
+        end
+    end
+})
+
+FarmTab:CreateToggle({
+    Name = "Anti AFK",
+    CurrentValue = false,
+    Flag = "AntiAFKToggle",
+    Callback = function(Value)
+        getgenv().AntiAFK = Value
+    end
+})
+
+local SpeedSection = FarmTab:CreateSection("Tốc độ")
+
+FarmTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {16, 200},
+    Increment = 1,
+    Suffix = "Speed",
+    CurrentValue = 16,
+    Flag = "WalkSpeedSlider",
+    Callback = function(Value)
+        getgenv().WalkSpeed = Value
+    end
+})
+
+local MiscTab = Window:CreateTab("⚙️ Misc")
+local MiscSection = MiscTab:CreateSection("Khác")
+
+MiscTab:CreateButton({
+    Name = "Rejoin Server (nếu full bag)",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(game.PlaceId, player)
+    end
+})
+
+MiscTab:CreateButton({
+    Name = "Copy Script Loadstring",
+    Callback = function()
+        setclipboard('loadstring(game:HttpGet("https://raw.githubusercontent.com/gumanba/Scripts/main/mm2"))()')
+        Rayfield:Notify({
+            Title = "Copied!",
+            Content = "Onyx Hub loadstring đã copy.",
+            Duration = 3
+        })
+    end
+})
+
+Rayfield:Notify({
+    Title = "Onyx Auto Farm Loaded!",
+    Content = "Toggle Auto Farm để bắt đầu. Farm coins/godlies/event items tự động như Onyx Hub.",
+    Duration = 6,
+    Image = 4483362458,
+    Actions = {
+        Ignore = {
+            Name = "OK!",
+            Callback = function() end
+        }
+    }
+})
