@@ -1,166 +1,217 @@
--- MM2 Auto Farm từ Onyx Hub (chức năng chính: farm coins, godlies, event items)
--- Thêm vào Rayfield menu. Copy paste vào executor (KRNL, Fluxus, etc.)
--- **CẢNH BÁO**: Có thể bị ban acc Roblox. Dùng alt acc!
-
-getgenv().AutoFarmEnabled = false
-getgenv().WalkSpeed = 16
-getgenv().AntiAFK = false
+-- Build Escape from Brainrot Script by Grok
+-- Features: Block ESP, Player Traces, WalkSpeed, Rayfield UI
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
 local player = Players.LocalPlayer
 
--- Auto Farm Loop (farm nearest coin/gun/knife/event item)
-spawn(function()
-    while true do
-        wait(0.05)
-        if getgenv().AutoFarmEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            pcall(function()
-                local char = player.Character
-                local root = char.HumanoidRootPart
-                local coins = {}
-                
-                -- Tìm tất cả items: coins, eggs, beachball, snowtoken, godlies, guns
-                for _, v in pairs(workspace:GetChildren()) do
-                    local name = string.lower(v.Name)
-                    if (name:find("coin") or name:find("egg") or name:find("beachball") or name:find("snowtoken") or 
-                        name:find("candy") or name:find("knife_") or name:find("gun")) and 
-                        v:IsA("Model") and v.PrimaryPart then
-                        local dist = (root.Position - v.PrimaryPart.Position).Magnitude
-                        if dist < 500 then  -- Giới hạn range để tránh lag
-                            table.insert(coins, {model = v, dist = dist, pos = v.PrimaryPart.CFrame})
-                        end
-                    end
-                end
-                
-                -- Sort nearest first
-                table.sort(coins, function(a, b) return a.dist < b.dist end)
-                
-                if #coins > 0 then
-                    root.CFrame = coins[1].pos * CFrame.new(0, 5, 0)  -- Teleport lên trên item
-                end
-            end)
-        end
-        
-        -- WalkSpeed
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.WalkSpeed = getgenv().WalkSpeed
-        end
-    end
-end)
-
--- Anti AFK
-spawn(function()
-    while true do
-        wait(60)  -- Mỗi 1 phút
-        if getgenv().AntiAFK then
-            local VirtualUser = game:GetService('VirtualUser')
-            game:GetService('Players').LocalPlayer.Idled:Connect(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
-        end
-    end
-end)
-
--- Rayfield UI
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
 local Window = Rayfield:CreateWindow({
-    Name = "Onyx Hub - Auto Farm",
-    LoadingTitle = "MM2 Farm",
-    LoadingSubtitle = "Từ gumanba Onyx",
+    Name = "Build Escape from Brainrot",
+    LoadingTitle = "Injecting...",
+    LoadingSubtitle = "by Grok",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "OnyxMM2",
-        FileName = "AutoFarm"
+        FolderName = "BrainrotBuildESP",
+        FileName = "BrainrotConfig"
     },
-    Discord = {
-        Enabled = false
-    },
-    KeySystem = false
+    KeySystem = false -- Set true for key
 })
 
-local FarmTab = Window:CreateTab("🤖 Auto Farm", 4483362458)
-local FarmSection = FarmTab:CreateSection("Chức năng Farm")
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
-FarmTab:CreateToggle({
-    Name = "Auto Farm (Coins/Godlies/Items/Event)",
-    CurrentValue = false,
-    Flag = "FarmToggle",
-    Callback = function(Value)
-        getgenv().AutoFarmEnabled = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Farm ON",
-                Content = "Farm nearest items tự động!",
-                Duration = 3,
-                Image = 4483362458
-            })
+-- Variables
+local ESPEnabled = false
+local TraceEnabled = false
+local ESPObjects = {}
+local TraceLines = {}
+local OldPositions = {}
+
+local Humanoid = nil
+
+-- ESP Functions
+local function WorldToScreen(pos)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+end
+
+local function CreateESP(part)
+    local data = {}
+    data.Box = Drawing.new("Square")
+    data.Box.Size = Vector2.new(0, 0)
+    data.Box.Position = Vector2.new(0, 0)
+    data.Box.Color = Color3.fromRGB(0, 255, 0)
+    data.Box.Thickness = 2
+    data.Box.Filled = false
+    data.Box.Transparency = 0.8
+    data.Box.Visible = false
+
+    data.Text = Drawing.new("Text")
+    data.Text.Size = 16
+    data.Text.Center = true
+    data.Text.Outline = true
+    data.Text.Font = 2
+    data.Text.Color = Color3.fromRGB(255, 255, 255)
+    data.Text.Visible = false
+
+    ESPObjects[part] = data
+end
+
+local function AddBlockESP()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Parent ~= player.Character and not obj.Parent:FindFirstChildOfClass("Humanoid") then
+            local nameLower = obj.Name:lower()
+            if (nameLower:find("block") or nameLower:find("brick") or nameLower:find("build") or nameLower:find("part")) and 
+               obj.Size.Magnitude <= 20 and obj.Transparency == 0 and obj.CanCollide then
+                if not ESPObjects[obj] then
+                    CreateESP(obj)
+                end
+            end
+        end
+    end
+end
+
+local ESPConnection
+local function UpdateESP()
+    for part, data in pairs(ESPObjects) do
+        if part and part.Parent then
+            local pos = part.Position
+            local screenPos, onScreen = WorldToScreen(pos)
+            if onScreen then
+                local topPos = WorldToScreen(pos + Vector3.new(0, part.Size.Y / 2, 0))
+                local bottomPos = WorldToScreen(pos - Vector3.new(0, part.Size.Y / 2, 0))
+                if topPos and bottomPos then
+                    local height = math.abs(topPos.Y - bottomPos.Y)
+                    local width = height * 0.6
+                    data.Box.Position = Vector2.new(screenPos.X - width / 2, bottomPos.Y)
+                    data.Box.Size = Vector2.new(width, height)
+                    data.Box.Visible = true
+
+                    local dist = math.floor((Camera.CFrame.Position - pos).Magnitude)
+                    data.Text.Text = obj.Name .. "\n[" .. dist .. "]"
+                    data.Text.Position = Vector2.new(screenPos.X, bottomPos.Y - 20)
+                    data.Text.Visible = true
+                end
+            else
+                data.Box.Visible = false
+                data.Text.Visible = false
+            end
         else
-            Rayfield:Notify({
-                Title = "Auto Farm OFF",
-                Content = "Dừng farm.",
-                Duration = 2
-            })
+            data.Box:Remove()
+            data.Text:Remove()
+            ESPObjects[part] = nil
+        end
+    end
+end
+
+-- Traces Functions
+local function UpdateTraces()
+    if not TraceEnabled then
+        for _, line in ipairs(TraceLines) do
+            line:Remove()
+        end
+        TraceLines = {}
+        return
+    end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = plr.Character.HumanoidRootPart
+            local oldPos = OldPositions[plr]
+            if oldPos then
+                local startScreen, startOnScreen = WorldToScreen(oldPos)
+                local endScreen, endOnScreen = WorldToScreen(hrp.Position)
+                if startOnScreen and endOnScreen then
+                    local line = Drawing.new("Line")
+                    line.From = startScreen
+                    line.To = endScreen
+                    line.Color = Color3.fromRGB(255, 0, 255)
+                    line.Thickness = 3
+                    line.Transparency = 0.7
+                    line.Visible = true
+                    table.insert(TraceLines, line)
+                end
+            end
+            OldPositions[plr] = hrp.Position
+        end
+    end
+
+    -- Clean up old lines
+    for i = #TraceLines, 1, -1 do
+        TraceLines[i]:Remove()
+        table.remove(TraceLines, i)
+    end
+end
+
+-- Character Handling
+local function OnCharacterAdded(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        Humanoid = hum
+        -- Apply WalkSpeed from slider
+        local flagSlider = Window.Flags.WalkSpeedSlider or 16
+        hum.WalkSpeed = flagSlider
+    end
+end
+
+player.CharacterAdded:Connect(OnCharacterAdded)
+if player.Character then
+    OnCharacterAdded(player.Character)
+end
+
+-- UI Elements
+PlayerTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {16, 300},
+    Increment = 1,
+    CurrentValue = 16,
+    Suffix = " studs/s",
+    Flag = "WalkSpeedSlider",
+    Callback = function(Value)
+        if Humanoid then
+            Humanoid.WalkSpeed = Value
         end
     end
 })
 
-FarmTab:CreateToggle({
-    Name = "Anti AFK",
+VisualsTab:CreateToggle({
+    Name = "Block ESP",
     CurrentValue = false,
-    Flag = "AntiAFKToggle",
     Callback = function(Value)
-        getgenv().AntiAFK = Value
+        ESPEnabled = Value
+        if Value then
+            spawn(function()
+                while ESPEnabled do
+                    AddBlockESP()
+                    wait(2)
+                end
+            end)
+        else
+            for _, data in pairs(ESPObjects) do
+                data.Box:Remove()
+                data.Text:Remove()
+            end
+            ESPObjects = {}
+        end
     end
 })
 
-local SpeedSection = FarmTab:CreateSection("Tốc độ")
-
-FarmTab:CreateSlider({
-    Name = "WalkSpeed",
-    Range = {16, 200},
-    Increment = 1,
-    Suffix = "Speed",
-    CurrentValue = 16,
-    Flag = "WalkSpeedSlider",
+VisualsTab:CreateToggle({
+    Name = "Player Traces",
+    CurrentValue = false,
     Callback = function(Value)
-        getgenv().WalkSpeed = Value
+        TraceEnabled = Value
     end
 })
 
-local MiscTab = Window:CreateTab("⚙️ Misc")
-local MiscSection = MiscTab:CreateSection("Khác")
-
-MiscTab:CreateButton({
-    Name = "Rejoin Server (nếu full bag)",
-    Callback = function()
-        game:GetService("TeleportService"):Teleport(game.PlaceId, player)
+-- Connections
+ESPConnection = RunService.Heartbeat:Connect(function()
+    if ESPEnabled then
+        UpdateESP()
     end
-})
+    UpdateTraces()
+end)
 
-MiscTab:CreateButton({
-    Name = "Copy Script Loadstring",
-    Callback = function()
-        setclipboard('loadstring(game:HttpGet("https://raw.githubusercontent.com/gumanba/Scripts/main/mm2"))()')
-        Rayfield:Notify({
-            Title = "Copied!",
-            Content = "Onyx Hub loadstring đã copy.",
-            Duration = 3
-        })
-    end
-})
-
-Rayfield:Notify({
-    Title = "Onyx Auto Farm Loaded!",
-    Content = "Toggle Auto Farm để bắt đầu. Farm coins/godlies/event items tự động như Onyx Hub.",
-    Duration = 6,
-    Image = 4483362458,
-    Actions = {
-        Ignore = {
-            Name = "OK!",
-            Callback = function() end
-        }
-    }
-})
+Rayfield:LoadConfiguration()
