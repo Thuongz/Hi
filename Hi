@@ -1,5 +1,6 @@
--- Build Escape from Brainrot Script by Grok
--- Features: Block ESP, Player Traces, WalkSpeed, Rayfield UI
+-- Build Escape from Brainrot Script FIXED by Grok
+-- Fixes: ESP crash (obj -> part), Traces visible (per-player line), WalkSpeed flag, WorldToScreen, Menu reliable
+-- Features: Block ESP (green box + name/dist), Player Traces (magenta movement line), WalkSpeed Slider, Rayfield UI
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,13 +11,21 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Build Escape from Brainrot",
     LoadingTitle = "Injecting...",
-    LoadingSubtitle = "by Grok",
+    LoadingSubtitle = "by Grok (Fixed)",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "BrainrotBuildESP",
-        FileName = "BrainrotConfig"
+        FolderName = "BrainrotBuild",
+        FileName = "Config"
     },
-    KeySystem = false -- Set true for key
+    KeySystem = false
+})
+
+-- Notify on load
+Rayfield:Notify({
+    Title = "Script Loaded!",
+    Content = "Menu ready. Toggle ESP/Traces, adjust WalkSpeed.",
+    Duration = 4,
+    Image = 4483362458
 })
 
 local PlayerTab = Window:CreateTab("Player", 4483362458)
@@ -26,26 +35,23 @@ local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 local ESPEnabled = false
 local TraceEnabled = false
 local ESPObjects = {}
-local TraceLines = {}
+local PlayerTraceLines = {}
 local OldPositions = {}
-
 local Humanoid = nil
 
 -- ESP Functions
 local function WorldToScreen(pos)
-    local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
-    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+    local screenPoint, onScreen, depth = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(screenPoint.X, screenPoint.Y), onScreen, depth
 end
 
 local function CreateESP(part)
     local data = {}
     data.Box = Drawing.new("Square")
-    data.Box.Size = Vector2.new(0, 0)
-    data.Box.Position = Vector2.new(0, 0)
-    data.Box.Color = Color3.fromRGB(0, 255, 0)
-    data.Box.Thickness = 2
     data.Box.Filled = false
-    data.Box.Transparency = 0.8
+    data.Box.Thickness = 2
+    data.Box.Transparency = 1
+    data.Box.Color = Color3.fromRGB(0, 255, 0)
     data.Box.Visible = false
 
     data.Text = Drawing.new("Text")
@@ -73,34 +79,41 @@ local function AddBlockESP()
     end
 end
 
-local ESPConnection
 local function UpdateESP()
     for part, data in pairs(ESPObjects) do
         if part and part.Parent then
             local pos = part.Position
-            local screenPos, onScreen = WorldToScreen(pos)
-            if onScreen then
-                local topPos = WorldToScreen(pos + Vector3.new(0, part.Size.Y / 2, 0))
-                local bottomPos = WorldToScreen(pos - Vector3.new(0, part.Size.Y / 2, 0))
-                if topPos and bottomPos then
-                    local height = math.abs(topPos.Y - bottomPos.Y)
-                    local width = height * 0.6
-                    data.Box.Position = Vector2.new(screenPos.X - width / 2, bottomPos.Y)
-                    data.Box.Size = Vector2.new(width, height)
-                    data.Box.Visible = true
-
-                    local dist = math.floor((Camera.CFrame.Position - pos).Magnitude)
-                    data.Text.Text = obj.Name .. "\n[" .. dist .. "]"
-                    data.Text.Position = Vector2.new(screenPos.X, bottomPos.Y - 20)
-                    data.Text.Visible = true
-                end
-            else
+            local centerPos, centerOnScreen = WorldToScreen(pos)
+            if not centerOnScreen then
                 data.Box.Visible = false
                 data.Text.Visible = false
+                continue
             end
+
+            local topOffset = Vector3.new(0, part.Size.Y / 2, 0)
+            local botOffset = Vector3.new(0, -part.Size.Y / 2, 0)
+            local topPos, topOnScreen = WorldToScreen(pos + topOffset)
+            local botPos, botOnScreen = WorldToScreen(pos + botOffset)
+
+            if not (topOnScreen and botOnScreen) then
+                data.Box.Visible = false
+                data.Text.Visible = false
+                continue
+            end
+
+            local height = math.abs(topPos.Y - botPos.Y)
+            local width = height * 0.6
+            data.Box.Size = Vector2.new(width, height)
+            data.Box.Position = Vector2.new(centerPos.X - width / 2, topPos.Y)
+            data.Box.Visible = true
+
+            local dist = math.floor((Camera.CFrame.Position - pos).Magnitude)
+            data.Text.Text = part.Name .. "\n[" .. dist .. "]"
+            data.Text.Position = Vector2.new(centerPos.X, topPos.Y - 20)
+            data.Text.Visible = true
         else
-            data.Box:Remove()
-            data.Text:Remove()
+            if data.Box then data.Box:Remove() end
+            if data.Text then data.Text:Remove() end
             ESPObjects[part] = nil
         end
     end
@@ -108,40 +121,46 @@ end
 
 -- Traces Functions
 local function UpdateTraces()
-    if not TraceEnabled then
-        for _, line in ipairs(TraceLines) do
-            line:Remove()
-        end
-        TraceLines = {}
-        return
-    end
+    if not TraceEnabled then return end
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = plr.Character.HumanoidRootPart
-            local oldPos = OldPositions[plr]
-            if oldPos then
-                local startScreen, startOnScreen = WorldToScreen(oldPos)
-                local endScreen, endOnScreen = WorldToScreen(hrp.Position)
-                if startOnScreen and endOnScreen then
-                    local line = Drawing.new("Line")
-                    line.From = startScreen
-                    line.To = endScreen
-                    line.Color = Color3.fromRGB(255, 0, 255)
+            local uid = plr.UserId
+            local oldPos = OldPositions[uid] or hrp.Position
+            OldPositions[uid] = hrp.Position
+
+            local startScreen, startOnScreen = WorldToScreen(oldPos)
+            local endScreen, endOnScreen = WorldToScreen(hrp.Position)
+
+            if startOnScreen and endOnScreen then
+                local line = PlayerTraceLines[uid]
+                if not line then
+                    line = Drawing.new("Line")
                     line.Thickness = 3
                     line.Transparency = 0.7
-                    line.Visible = true
-                    table.insert(TraceLines, line)
+                    PlayerTraceLines[uid] = line
+                end
+                line.From = startScreen
+                line.To = endScreen
+                line.Color = Color3.fromRGB(255, 0, 255)
+                line.Visible = true
+            else
+                if PlayerTraceLines[uid] then
+                    PlayerTraceLines[uid].Visible = false
                 end
             end
-            OldPositions[plr] = hrp.Position
         end
     end
 
-    -- Clean up old lines
-    for i = #TraceLines, 1, -1 do
-        TraceLines[i]:Remove()
-        table.remove(TraceLines, i)
+    -- Cleanup disconnected
+    for uid, line in pairs(PlayerTraceLines) do
+        local plr = Players:GetPlayerByUserId(uid)
+        if not plr then
+            line:Remove()
+            PlayerTraceLines[uid] = nil
+            OldPositions[uid] = nil
+        end
     end
 end
 
@@ -150,9 +169,7 @@ local function OnCharacterAdded(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if hum then
         Humanoid = hum
-        -- Apply WalkSpeed from slider
-        local flagSlider = Window.Flags.WalkSpeedSlider or 16
-        hum.WalkSpeed = flagSlider
+        hum.WalkSpeed = Rayfield.Flags.WalkSpeedSlider or 16
     end
 end
 
@@ -162,7 +179,7 @@ if player.Character then
 end
 
 -- UI Elements
-PlayerTab:CreateSlider({
+local WalkSpeedSlider = PlayerTab:CreateSlider({
     Name = "WalkSpeed",
     Range = {16, 300},
     Increment = 1,
@@ -177,21 +194,22 @@ PlayerTab:CreateSlider({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Block ESP",
+    Name = "Block ESP (Build Blocks)",
     CurrentValue = false,
     Callback = function(Value)
         ESPEnabled = Value
         if Value then
+            AddBlockESP()  -- Initial scan
             spawn(function()
                 while ESPEnabled do
                     AddBlockESP()
-                    wait(2)
+                    wait(1.5)  -- Faster scan for new blocks
                 end
             end)
         else
             for _, data in pairs(ESPObjects) do
-                data.Box:Remove()
-                data.Text:Remove()
+                if data.Box then data.Box:Remove() end
+                if data.Text then data.Text:Remove() end
             end
             ESPObjects = {}
         end
@@ -199,15 +217,22 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Player Traces",
+    Name = "Player Traces (Movement Lines)",
     CurrentValue = false,
     Callback = function(Value)
         TraceEnabled = Value
+        if not Value then
+            for _, line in pairs(PlayerTraceLines) do
+                line:Remove()
+            end
+            PlayerTraceLines = {}
+            OldPositions = {}
+        end
     end
 })
 
--- Connections
-ESPConnection = RunService.Heartbeat:Connect(function()
+-- Main Loop
+local Connection = RunService.Heartbeat:Connect(function()
     if ESPEnabled then
         UpdateESP()
     end
