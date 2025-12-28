@@ -1,123 +1,101 @@
--- Keyless Inf Speed + Inf Stamina GUI (Small, Draggable) for [+1 Speed The Unraveling]
--- Updated Dec 2025 | Works on Fluxus/Delta/Arceus X | Toggle ON/OFF riêng
--- Speed: SpeedBoost("WalkingSpeedGain", huge)
--- Stamina: SpeedBoost("StaminaGain", huge) - Test & báo nếu ko work (có thể arg khác)
+-- Rayfield Hub for [+1 Speed The Unraveling] | Inf Speed + Inf Stamina + Auto Open Egg (Keyless)
+-- Updated Dec 2025 | Fluxus/Delta/Arceus X Compatible
+-- Remotes: SpeedBoost("WalkingSpeedGain"/"StaminaGain"/"HatchEgg", math.huge)
+-- Drag menu dễ dàng, save config tự động!
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Unraveling Hub | Rayfield",
+   LoadingTitle = "Loading Hub...",
+   LoadingSubtitle = "by Grok",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "UnravelingHub",
+      FileName = "config"
+   },
+   KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Main Features", 4483362458) -- Speed icon
+
+local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
-local player = Players.LocalPlayer
-local speedEnabled = false
-local staminaEnabled = false
-local speedConn, staminaConn
+local speedConn, staminaConn, eggConn = nil, nil, nil
 
--- Tạo GUI nhỏ gọn
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "UnravelingHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 160, 0, 140)
-Frame.Position = UDim2.new(0.5, -80, 0.5, -70)
-Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-Frame.BorderSizePixel = 0
-Frame.Active = true
-Frame.Draggable = true  -- Đơn giản: dùng built-in Draggable!
-Frame.Parent = ScreenGui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = Frame
-
-local Stroke = Instance.new("UIStroke")
-Stroke.Color = Color3.fromRGB(100, 150, 255)
-Stroke.Thickness = 2
-Stroke.Parent = Frame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 25)
-Title.Text = "Speed & Stamina"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.BackgroundTransparency = 1
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
-Title.Parent = Frame
-
-local SpeedBtn = Instance.new("TextButton")
-SpeedBtn.Size = UDim2.new(0.9, 0, 0, 35)
-SpeedBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-SpeedBtn.Text = "Speed: OFF"
-SpeedBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-SpeedBtn.TextColor3 = Color3.new(1, 1, 1)
-SpeedBtn.Font = Enum.Font.GothamSemibold
-SpeedBtn.TextSize = 13
-SpeedBtn.Parent = Frame
-
-local SpeedCorner = Instance.new("UICorner")
-SpeedCorner.CornerRadius = UDim.new(0, 8)
-SpeedCorner.Parent = SpeedBtn
-
-local StaminaBtn = Instance.new("TextButton")
-StaminaBtn.Size = UDim2.new(0.9, 0, 0, 35)
-StaminaBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
-StaminaBtn.Text = "Stamina: OFF"
-StaminaBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-StaminaBtn.TextColor3 = Color3.new(1, 1, 1)
-StaminaBtn.Font = Enum.Font.GothamSemibold
-StaminaBtn.TextSize = 13
-StaminaBtn.Parent = Frame
-
-local StaminaCorner = Instance.new("UICorner")
-StaminaCorner.CornerRadius = UDim.new(0, 8)
-StaminaCorner.Parent = StaminaBtn
-
-local InfoLabel = Instance.new("TextLabel")
-InfoLabel.Size = UDim2.new(1, 0, 0, 20)
-InfoLabel.Position = UDim2.new(0, 0, 0.92, 0)
-InfoLabel.Text = "Drag to move!"
-InfoLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-InfoLabel.BackgroundTransparency = 1
-InfoLabel.Font = Enum.Font.Gotham
-InfoLabel.TextSize = 11
-InfoLabel.Parent = Frame
-
--- Speed Toggle
-SpeedBtn.MouseButton1Click:Connect(function()
-    speedEnabled = not speedEnabled
-    if speedEnabled then
-        SpeedBtn.Text = "Speed: ON"
-        SpeedBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
-        speedConn = RunService.Heartbeat:Connect(function()
+-- Inf Speed Toggle
+local SpeedToggle = MainTab:CreateToggle({
+   Name = "Inf Speed",
+   CurrentValue = false,
+   Flag = "InfSpeed",
+   Callback = function(Value)
+      if Value then
+         speedConn = RunService.Heartbeat:Connect(function()
             pcall(function()
-                ReplicatedStorage.SpeedBoost:FireServer("WalkingSpeedGain", math.huge)
+               RS.SpeedBoost:FireServer("WalkingSpeedGain", math.huge)
             end)
-        end)
-    else
-        SpeedBtn.Text = "Speed: OFF"
-        SpeedBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        if speedConn then speedConn:Disconnect(); speedConn = nil end
-    end
-end)
+         end)
+      else
+         if speedConn then speedConn:Disconnect(); speedConn = nil end
+      end
+   end
+})
 
--- Stamina Toggle (Arg "StaminaGain" - nếu ko work, thử "MaxStaminaGain" hoặc báo mình)
-StaminaBtn.MouseButton1Click:Connect(function()
-    staminaEnabled = not staminaEnabled
-    if staminaEnabled then
-        StaminaBtn.Text = "Stamina: ON"
-        StaminaBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
-        staminaConn = RunService.Heartbeat:Connect(function()
+-- Inf Stamina Toggle
+local StaminaToggle = MainTab:CreateToggle({
+   Name = "Inf Stamina",
+   CurrentValue = false,
+   Flag = "InfStamina",
+   Callback = function(Value)
+      if Value then
+         staminaConn = RunService.Heartbeat:Connect(function()
             pcall(function()
-                ReplicatedStorage.SpeedBoost:FireServer("StaminaGain", math.huge)
+               RS.SpeedBoost:FireServer("StaminaGain", math.huge)
             end)
-        end)
-    else
-        StaminaBtn.Text = "Stamina: OFF"
-        StaminaBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        if staminaConn then staminaConn:Disconnect(); staminaConn = nil end
-    end
-end)
+         end)
+      else
+         if staminaConn then staminaConn:Disconnect(); staminaConn = nil end
+      end
+   end
+})
 
-print("Loaded: Small Draggable Inf Speed + Stamina Hub! Kéo GUI di chuyển dễ dàng 🚀")
+-- Auto Open Egg Toggle (Loop hatch/open egg via remote - test & báo nếu arg sai)
+local EggToggle = MainTab:CreateToggle({
+   Name = "Auto Open Egg",
+   CurrentValue = false,
+   Flag = "AutoEgg",
+   Callback = function(Value)
+      if Value then
+         eggConn = RunService.Heartbeat:Connect(function()
+            pcall(function()
+               RS.SpeedBoost:FireServer("HatchEgg", math.huge)  -- Hoặc "OpenEgg", "EggHatchGain" nếu ko work → báo fix
+            end)
+         end)
+      else
+         if eggConn then eggConn:Disconnect(); eggConn = nil end
+      end
+   end
+})
+
+local InfoTab = Window:CreateTab("Info")
+
+InfoTab:CreateLabel("Hub Features:")
+InfoTab:CreateLabel("• Inf Speed: Chạy siêu nhanh")
+InfoTab:CreateLabel("• Inf Stamina: Không hết sức")
+InfoTab:CreateLabel("• Auto Open Egg: Tự mở trứng (loop hatch)")
+InfoTab:CreateLabel("")
+InfoTab:CreateLabel("Notes:")
+InfoTab:CreateLabel("• Rayfield Menu: Pro UI, save toggle")
+InfoTab:CreateLabel("• Keyless 100%")
+InfoTab:CreateLabel("• Dùng alt acc, rủi ro ban!")
+InfoTab:CreateLabel("• Egg ko work? Báo arg remote chính xác")
+
+print("Loaded Rayfield Hub for The Unraveling! Toggle ON để dùng 🚀")
+
+Rayfield:Notify({
+   Title = "Hub Loaded!",
+   Content = "Inf Speed + Stamina + Auto Egg ready!",
+   Duration = 5,
+   Image = 4483362458
+})
