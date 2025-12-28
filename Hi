@@ -1,96 +1,38 @@
--- Simple Auto Clicker GUI (Fixed & Working Version)
+-- Inf Speed Toggle GUI (Keyless - Updated 2025)
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
 
-local clicking = false
+local infSpeed = false
+local connection
 
--- Tạo GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AutoClicker"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
+-- GUI đơn giản
+local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 200, 0, 100)
+Frame.Position = UDim2.new(0.5, -100, 0.5, -50)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 150)
-Frame.Position = UDim2.new(0.5, -100, 0.5, -75)
-Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Frame.BorderSizePixel = 2
-Frame.Parent = ScreenGui
+local Button = Instance.new("TextButton", Frame)
+Button.Size = UDim2.new(1, 0, 1, 0)
+Button.Text = "Inf Speed: OFF"
+Button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Button.TextColor3 = Color3.new(1,1,1)
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "Auto Clicker"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.BackgroundTransparency = 1
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.Parent = Frame
-
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
-ToggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
-ToggleButton.Text = "Toggle: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-ToggleButton.TextColor3 = Color3.new(1, 1, 1)
-ToggleButton.Font = Enum.Font.Gotham
-ToggleButton.TextSize = 16
-ToggleButton.Parent = Frame
-
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(0.8, 0, 0, 20)
-SpeedLabel.Position = UDim2.new(0.1, 0, 0.65, 0)
-SpeedLabel.Text = "Speed: 100 CPS (có thể điều chỉnh)"
-SpeedLabel.TextColor3 = Color3.new(1, 1, 1)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Parent = Frame
-
--- Logic click
-spawn(function()
-    while true do
-        if clicking then
-            mouse1click()  -- Hoặc game:GetService("VirtualInputManager"):SendMouseButtonEvent(...) nếu cần bypass tốt hơn
-        end
-        task.wait(0.01)  -- ~100 clicks/giây, chỉnh nhỏ hơn để nhanh hơn (nhưng dễ detect)
-    end
-end)
-
--- Toggle
-ToggleButton.MouseButton1Click:Connect(function()
-    clicking = not clicking
-    if clicking then
-        ToggleButton.Text = "Toggle: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+Button.MouseButton1Click:Connect(function()
+    infSpeed = not infSpeed
+    if infSpeed then
+        Button.Text = "Inf Speed: ON"
+        Button.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        connection = RunService.Heartbeat:Connect(function()
+            pcall(function()
+                ReplicatedStorage.SpeedBoost:FireServer("WalkingSpeedGain", math.huge)
+            end)
+        end)
     else
-        ToggleButton.Text = "Toggle: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    end
-end)
-
--- Drag GUI
-local dragging
-local dragInput
-local dragStart
-local startPos
-
-Frame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = Frame.Position
-    end
-end)
-
-Frame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-        local delta = input.Position - dragStart
-        Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
+        Button.Text = "Inf Speed: OFF"
+        Button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        if connection then connection:Disconnect() end
     end
 end)
