@@ -1,38 +1,123 @@
--- Inf Speed Toggle GUI (Keyless - Updated 2025)
+-- Keyless Inf Speed + Inf Stamina GUI (Small, Draggable) for [+1 Speed The Unraveling]
+-- Updated Dec 2025 | Works on Fluxus/Delta/Arceus X | Toggle ON/OFF riêng
+-- Speed: SpeedBoost("WalkingSpeedGain", huge)
+-- Stamina: SpeedBoost("StaminaGain", huge) - Test & báo nếu ko work (có thể arg khác)
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
 local player = Players.LocalPlayer
+local speedEnabled = false
+local staminaEnabled = false
+local speedConn, staminaConn
 
-local infSpeed = false
-local connection
+-- Tạo GUI nhỏ gọn
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "UnravelingHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
--- GUI đơn giản
-local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 200, 0, 100)
-Frame.Position = UDim2.new(0.5, -100, 0.5, -50)
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 160, 0, 140)
+Frame.Position = UDim2.new(0.5, -80, 0.5, -70)
+Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true  -- Đơn giản: dùng built-in Draggable!
+Frame.Parent = ScreenGui
 
-local Button = Instance.new("TextButton", Frame)
-Button.Size = UDim2.new(1, 0, 1, 0)
-Button.Text = "Inf Speed: OFF"
-Button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-Button.TextColor3 = Color3.new(1,1,1)
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = Frame
 
-Button.MouseButton1Click:Connect(function()
-    infSpeed = not infSpeed
-    if infSpeed then
-        Button.Text = "Inf Speed: ON"
-        Button.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-        connection = RunService.Heartbeat:Connect(function()
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(100, 150, 255)
+Stroke.Thickness = 2
+Stroke.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Text = "Speed & Stamina"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.Parent = Frame
+
+local SpeedBtn = Instance.new("TextButton")
+SpeedBtn.Size = UDim2.new(0.9, 0, 0, 35)
+SpeedBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
+SpeedBtn.Text = "Speed: OFF"
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+SpeedBtn.TextColor3 = Color3.new(1, 1, 1)
+SpeedBtn.Font = Enum.Font.GothamSemibold
+SpeedBtn.TextSize = 13
+SpeedBtn.Parent = Frame
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 8)
+SpeedCorner.Parent = SpeedBtn
+
+local StaminaBtn = Instance.new("TextButton")
+StaminaBtn.Size = UDim2.new(0.9, 0, 0, 35)
+StaminaBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
+StaminaBtn.Text = "Stamina: OFF"
+StaminaBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+StaminaBtn.TextColor3 = Color3.new(1, 1, 1)
+StaminaBtn.Font = Enum.Font.GothamSemibold
+StaminaBtn.TextSize = 13
+StaminaBtn.Parent = Frame
+
+local StaminaCorner = Instance.new("UICorner")
+StaminaCorner.CornerRadius = UDim.new(0, 8)
+StaminaCorner.Parent = StaminaBtn
+
+local InfoLabel = Instance.new("TextLabel")
+InfoLabel.Size = UDim2.new(1, 0, 0, 20)
+InfoLabel.Position = UDim2.new(0, 0, 0.92, 0)
+InfoLabel.Text = "Drag to move!"
+InfoLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Font = Enum.Font.Gotham
+InfoLabel.TextSize = 11
+InfoLabel.Parent = Frame
+
+-- Speed Toggle
+SpeedBtn.MouseButton1Click:Connect(function()
+    speedEnabled = not speedEnabled
+    if speedEnabled then
+        SpeedBtn.Text = "Speed: ON"
+        SpeedBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
+        speedConn = RunService.Heartbeat:Connect(function()
             pcall(function()
                 ReplicatedStorage.SpeedBoost:FireServer("WalkingSpeedGain", math.huge)
             end)
         end)
     else
-        Button.Text = "Inf Speed: OFF"
-        Button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        if connection then connection:Disconnect() end
+        SpeedBtn.Text = "Speed: OFF"
+        SpeedBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        if speedConn then speedConn:Disconnect(); speedConn = nil end
     end
 end)
+
+-- Stamina Toggle (Arg "StaminaGain" - nếu ko work, thử "MaxStaminaGain" hoặc báo mình)
+StaminaBtn.MouseButton1Click:Connect(function()
+    staminaEnabled = not staminaEnabled
+    if staminaEnabled then
+        StaminaBtn.Text = "Stamina: ON"
+        StaminaBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
+        staminaConn = RunService.Heartbeat:Connect(function()
+            pcall(function()
+                ReplicatedStorage.SpeedBoost:FireServer("StaminaGain", math.huge)
+            end)
+        end)
+    else
+        StaminaBtn.Text = "Stamina: OFF"
+        StaminaBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        if staminaConn then staminaConn:Disconnect(); staminaConn = nil end
+    end
+end)
+
+print("Loaded: Small Draggable Inf Speed + Stamina Hub! Kéo GUI di chuyển dễ dàng 🚀")
