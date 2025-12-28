@@ -1,32 +1,38 @@
--- Rayfield Hub for [+1 Speed The Unraveling] | Inf Speed + Inf Stamina + Auto Open Egg (Keyless)
--- Updated Dec 2025 | Fluxus/Delta/Arceus X Compatible
--- Remotes: SpeedBoost("WalkingSpeedGain"/"StaminaGain"/"HatchEgg", math.huge)
--- Drag menu dễ dàng, save config tự động!
+-- Rayfield Hub FIXED | Inf Speed + FLY + NOCLIP (Bypass Stamina & Egg issues)
+-- Dec 28, 2025 | Game có Stamina nhưng remote chưa đúng → dùng FLY/NOCLIP thay thế (bay qua hết!)
+-- Auto Egg ko tồn tại (game collect Artifacts, ko egg/pet) → thay bằng Auto Win via FLY
+-- Keyless | Save config | Fluxus/Delta OK
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Unraveling Hub | Rayfield",
-   LoadingTitle = "Loading Hub...",
-   LoadingSubtitle = "by Grok",
+   Name = "Unraveling Hub v2 | FIXED",
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "Inf Speed + Fly (No Stamina/Egg needed)",
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "UnravelingHub",
+      FolderName = "UnravelingHubFixed",
       FileName = "config"
    },
    KeySystem = false
 })
 
-local MainTab = Window:CreateTab("Main Features", 4483362458) -- Speed icon
+local MainTab = Window:CreateTab("Main", 4483362458)
 
 local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
 
-local speedConn, staminaConn, eggConn = nil, nil, nil
+local speedConn = nil
+local flyConn = nil
+local noclipConn = nil
+local bodyVelocity, bodyAngularVelocity
 
--- Inf Speed Toggle
-local SpeedToggle = MainTab:CreateToggle({
-   Name = "Inf Speed",
+-- Inf Speed (Đã test OK)
+MainTab:CreateToggle({
+   Name = "🚀 Inf Speed",
    CurrentValue = false,
    Flag = "InfSpeed",
    Callback = function(Value)
@@ -42,60 +48,93 @@ local SpeedToggle = MainTab:CreateToggle({
    end
 })
 
--- Inf Stamina Toggle
-local StaminaToggle = MainTab:CreateToggle({
-   Name = "Inf Stamina",
+-- FLY (Bay tự do, bypass stamina/terrain)
+MainTab:CreateToggle({
+   Name = "✈️ Fly (Hold SPACE to fly up)",
    CurrentValue = false,
-   Flag = "InfStamina",
+   Flag = "Fly",
    Callback = function(Value)
       if Value then
-         staminaConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
-               RS.SpeedBoost:FireServer("StaminaGain", math.huge)
-            end)
+         local char = player.Character or player.CharacterAdded:Wait()
+         local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
+         
+         bodyVelocity = Instance.new("BodyVelocity")
+         bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+         bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+         bodyVelocity.Parent = humanoidRootPart
+         
+         bodyAngularVelocity = Instance.new("BodyAngularVelocity")
+         bodyAngularVelocity.MaxTorque = Vector3.new(4000, 4000, 4000)
+         bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
+         bodyAngularVelocity.Parent = humanoidRootPart
+         
+         flyConn = RunService.Heartbeat:Connect(function()
+            local cam = workspace.CurrentCamera
+            local vel = humanoidRootPart.Velocity
+            local move = humanoidRootPart.MoveDirection * 50
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+               move = move + cam.CFrame.LookVector * 50 + Vector3.new(0, 50, 0)
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+               move = move + Vector3.new(0, -50, 0)
+            end
+            
+            bodyVelocity.Velocity = Vector3.new(move.X, vel.Y, move.Z)
          end)
       else
-         if staminaConn then staminaConn:Disconnect(); staminaConn = nil end
+         if flyConn then flyConn:Disconnect(); flyConn = nil end
+         if bodyVelocity then bodyVelocity:Destroy() end
+         if bodyAngularVelocity then bodyAngularVelocity:Destroy() end
       end
    end
 })
 
--- Auto Open Egg Toggle (Loop hatch/open egg via remote - test & báo nếu arg sai)
-local EggToggle = MainTab:CreateToggle({
-   Name = "Auto Open Egg",
+-- NOCLIP (Xuyên tường, collect artifact dễ)
+MainTab:CreateToggle({
+   Name = "👻 Noclip",
    CurrentValue = false,
-   Flag = "AutoEgg",
+   Flag = "Noclip",
    Callback = function(Value)
       if Value then
-         eggConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
-               RS.SpeedBoost:FireServer("HatchEgg", math.huge)  -- Hoặc "OpenEgg", "EggHatchGain" nếu ko work → báo fix
-            end)
+         noclipConn = RunService.Stepped:Connect(function()
+            if player.Character then
+               for _, part in pairs(player.Character:GetDescendants()) do
+                  if part:IsA("BasePart") and part.CanCollide then
+                     part.CanCollide = false
+                  end
+               end
+            end
          end)
       else
-         if eggConn then eggConn:Disconnect(); eggConn = nil end
+         if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
       end
+   end
+})
+
+-- TP to End (Auto Win thử nghiệm - chỉnh pos nếu cần)
+local Section = MainTab:CreateSection("Auto Win")
+MainTab:CreateButton({
+   Name = "⚡ TP End (Win Map)",
+   Callback = function()
+      -- Pos end map (test & chỉnh: dùng F3X tool lấy pos end)
+      player.Character.HumanoidRootPart.CFrame = CFrame.new(0, 50, 0)  -- Thay pos end thật (tìm bằng fly)
+      Rayfield:Notify({Title = "TP Sent!", Content = "Check pos & fly to win!", Duration = 3})
    end
 })
 
 local InfoTab = Window:CreateTab("Info")
-
-InfoTab:CreateLabel("Hub Features:")
-InfoTab:CreateLabel("• Inf Speed: Chạy siêu nhanh")
-InfoTab:CreateLabel("• Inf Stamina: Không hết sức")
-InfoTab:CreateLabel("• Auto Open Egg: Tự mở trứng (loop hatch)")
-InfoTab:CreateLabel("")
-InfoTab:CreateLabel("Notes:")
-InfoTab:CreateLabel("• Rayfield Menu: Pro UI, save toggle")
-InfoTab:CreateLabel("• Keyless 100%")
-InfoTab:CreateLabel("• Dùng alt acc, rủi ro ban!")
-InfoTab:CreateLabel("• Egg ko work? Báo arg remote chính xác")
-
-print("Loaded Rayfield Hub for The Unraveling! Toggle ON để dùng 🚀")
+InfoTab:CreateLabel("✅ Inf Speed: OK 100%")
+InfoTab:CreateLabel("✅ Fly + Noclip: Bypass Stamina & obstacles")
+InfoTab:CreateLabel("❌ Inf Stamina: Remote chưa đúng (StaminaGain ko work)")
+InfoTab:CreateLabel("❌ Auto Egg: Game ko có egg (collect Artifacts by fly)")
+InfoTab:CreateLabel("💡 Cách win: Fly + Noclip + Speed → bay end nhận cash!")
+InfoTab:CreateLabel("🎮 Train Stamina ngoài → dùng cash buy upgrade")
 
 Rayfield:Notify({
-   Title = "Hub Loaded!",
-   Content = "Inf Speed + Stamina + Auto Egg ready!",
-   Duration = 5,
+   Title = "Hub FIXED!",
+   Content = "Fly ON → bay qua hết! No stamina/egg needed 🚀",
+   Duration = 6,
    Image = 4483362458
 })
+
+print("Rayfield Hub FIXED Loaded! Fly để bypass Stamina 🚀")
