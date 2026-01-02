@@ -1,21 +1,146 @@
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
+-- Don't Steal the Baby Brainrots Script
+-- Features: Auto Tele về base sau khi cướp, Auto Collect Cash, WalkSpeed, Rayfield Menu
+-- Paste vào executor như Synapse, Fluxus,...
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local remote = ReplicatedStorage:WaitForChild("BreakBlock")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local RANGE = 50
-local COOLDOWN = 0.2 -- càng thấp đào càng nhanh
+local Window = Rayfield:CreateWindow({
+   Name = "Don't Steal the Baby Brainrots Hub",
+   LoadingTitle = "Đang tải...",
+   LoadingSubtitle = "by Grok",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "DSTBBHub",
+      FileName = "Config"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "",
+      RememberJoins = true
+   },
+   KeySystem = false
+})
 
-while true do
-    for _, block in pairs(workspace.Blocks:GetChildren()) do
-        if block:IsA("BasePart") then
-            local dist = (block.Position - hrp.Position).Magnitude
-            if dist <= RANGE then
-                remote:FireServer(block)
+local MainTab = Window:CreateTab("Chính", 4483362458)
+local PlayerTab = Window:CreateTab("Player")
+
+local MainSection = MainTab:CreateSection("Tự động")
+
+local AutoCollectToggle = MainTab:CreateToggle({
+   Name = "Auto Collect Cash",
+   CurrentValue = false,
+   Flag = "AutoCollectCash",
+   Callback = function(Value)
+      getgenv().AutoCollectCash = Value
+   end,
+})
+
+local AutoTeleToggle = MainTab:CreateToggle({
+   Name = "Auto Tele về Base sau khi cướp",
+   CurrentValue = false,
+   Flag = "AutoTeleBase",
+   Callback = function(Value)
+      getgenv().AutoTeleBase = Value
+   end,
+})
+
+local TPBaseButton = MainTab:CreateButton({
+   Name = "Tele về Base ngay",
+   Callback = function()
+      local player = game.Players.LocalPlayer
+      local char = player.Character
+      if char and char:FindFirstChild("HumanoidRootPart") then
+         local plot = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
+         if plot then
+            local spawnPart = plot:FindFirstChild("Spawn") or plot:FindFirstChild("SpawnLocation") or plot:FindFirstChildWhichIsA("BasePart")
+            if spawnPart then
+               char.HumanoidRootPart.CFrame = CFrame.new(spawnPart.Position + Vector3.new(0, 10, 0))
             end
-        end
-    end
-    task.wait(COOLDOWN)
-end
+         end
+      end
+   end,
+})
+
+PlayerSection = PlayerTab:CreateSection("Tốc độ")
+
+local WalkSpeedSlider = PlayerTab:CreateSlider({
+   Name = "WalkSpeed",
+   Range = {16, 300},
+   Increment = 1,
+   CurrentValue = 16,
+   Flag = "WalkSpeedSlider",
+   Callback = function(Value)
+      getgenv().WalkSpeedValue = Value
+      local player = game.Players.LocalPlayer
+      local char = player.Character
+      if char and char:FindFirstChild("Humanoid") then
+         char.Humanoid.WalkSpeed = Value
+      end
+   end,
+})
+
+-- Xử lý WalkSpeed khi respawn
+game.Players.LocalPlayer.CharacterAdded:Connect(function()
+   local char = game.Players.LocalPlayer.Character
+   char:WaitForChild("Humanoid")
+   char.Humanoid.WalkSpeed = getgenv().WalkSpeedValue or 16
+end)
+
+-- Auto Collect Cash
+spawn(function()
+   while task.wait() do
+      if getgenv().AutoCollectCash then
+         for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and (string.lower(obj.ActionText):find("collect") or string.lower(obj.ActionText):find("cash") or string.lower(obj.ObjectText):find("cash") or string.lower(obj.Parent.Name):find("cash")) then
+               local dist = (obj.Parent.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+               if dist < 100 then
+                  fireproximityprompt(obj)
+               end
+            end
+         end
+      end
+   end
+end)
+
+-- Auto Tele về Base sau khi cướp baby
+spawn(function()
+   while task.wait(0.1) do
+      if getgenv().AutoTeleBase then
+         local player = game.Players.LocalPlayer
+         local char = player.Character
+         if char and char:FindFirstChild("HumanoidRootPart") then
+            local hasBaby = false
+            -- Kiểm tra trong Character
+            for _, child in pairs(char:GetChildren()) do
+               if child.Name:lower():find("baby") or child.Name:lower():find("brainrot") or child:IsA("Tool") then
+                  hasBaby = true
+                  break
+               end
+            end
+            -- Kiểm tra trong Backpack
+            for _, tool in pairs(player.Backpack:GetChildren()) do
+               if tool:IsA("Tool") and (tool.Name:lower():find("baby") or tool.Name:lower():find("brainrot")) then
+                  hasBaby = true
+                  break
+               end
+            end
+            if hasBaby then
+               local plot = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
+               if plot then
+                  local deposit = plot:FindFirstChild("Deposit") or plot:FindFirstChild("Cash") or plot:FindFirstChild("Spawn") or plot:FindFirstChild("SpawnLocation")
+                  if deposit and deposit:IsA("BasePart") then
+                     char:SetPrimaryPartCFrame(CFrame.new(deposit.Position + Vector3.new(math.random(-5,5), 10, math.random(-5,5))))
+                  end
+               end
+            end
+         end
+      end
+   end
+end)
+
+Rayfield:Notify({
+   Title = "Script Loaded!",
+   Content = "Chúc chơi vui! Auto tele hoạt động khi cầm baby.",
+   Duration = 5,
+   Image = 4483362458,
+})
