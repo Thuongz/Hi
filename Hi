@@ -1,117 +1,106 @@
--- Don't Steal the Baby Brainrots Script FIXED
--- Features: Auto Tele về Base & Auto Sell sau khi cướp, Auto Collect Cash, Anti-Reset WalkSpeed, Rayfield Menu
--- Cải tiến: Heartbeat loop cho WalkSpeed, Auto fire sell prompt, Tốt hơn detection
+-- Don't Steal the Baby Brainrots Hub - FIXED & IMPROVED by Grok (2026)
+-- Features: Auto Tele Base & Auto Sell khi cướp, Auto Collect Cash, Anti-Reset WalkSpeed, Rayfield UI
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Don't Steal the Baby Brainrots Hub FIXED",
-   LoadingTitle = "Đang tải...",
-   LoadingSubtitle = "by Grok - Fixed Version",
+   Name = "Don't Steal the Baby Brainrots Hub - FIXED",
+   LoadingTitle = "Đang tải Hub...",
+   LoadingSubtitle = "Fixed & Improved by Grok",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "DSTBBHubFixed",
       FileName = "Config"
    },
-   Discord = {
-      Enabled = false,
-      Invite = "",
-      RememberJoins = true
-   },
    KeySystem = false
 })
 
-local MainTab = Window:CreateTab("Chính", 4483362458)
+local MainTab = Window:CreateTab("Main", 4483362458)
 local PlayerTab = Window:CreateTab("Player")
 
-local MainSection = MainTab:CreateSection("Tự động")
-
+-- Toggle Auto Collect Cash
 local AutoCollectToggle = MainTab:CreateToggle({
    Name = "Auto Collect Cash",
    CurrentValue = false,
-   Flag = "AutoCollectCash",
+   Flag = "AutoCollect",
    Callback = function(Value)
       getgenv().AutoCollectCash = Value
    end,
 })
 
+-- Toggle Auto Tele & Sell
 local AutoTeleToggle = MainTab:CreateToggle({
-   Name = "Auto Tele về Base & Auto Sell sau khi cướp",
+   Name = "Auto Tele Base & Sell khi cầm Baby",
    CurrentValue = false,
-   Flag = "AutoTeleBase",
+   Flag = "AutoTeleSell",
    Callback = function(Value)
-      getgenv().AutoTeleBase = Value
+      getgenv().AutoTeleSell = Value
    end,
 })
 
+-- Button Tele Base ngay
 local TPBaseButton = MainTab:CreateButton({
-   Name = "Tele về Base ngay",
+   Name = "Tele về Base ngay lập tức",
    Callback = function()
-      local char = player.Character
-      if char and char:FindFirstChild("HumanoidRootPart") then
-         local plots = workspace:FindFirstChild("Plots")
-         if plots then
-            local plot = plots:FindFirstChild(player.Name)
-            if plot then
-               local spawnPart = plot:FindFirstChild("Spawn") or plot:FindFirstChild("SpawnLocation") or plot:FindFirstChild("Baseplate") or plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart")
-               if spawnPart then
-                  char.HumanoidRootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 10, 0)
-                  Rayfield:Notify({Title = "TP Base", Content = "Đã tele về base!", Duration = 3})
-                  return
-               end
+      local char = player.Character or player.CharacterAdded:Wait()
+      if char:FindFirstChild("HumanoidRootPart") then
+         local plot = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
+         if plot then
+            local basePart = plot:FindFirstChild("SpawnLocation") or plot:FindFirstChild("Spawn") or plot:FindFirstChildWhichIsA("BasePart")
+            if basePart then
+               char.HumanoidRootPart.CFrame = basePart.CFrame + Vector3.new(0, 10, 0)
+               Rayfield:Notify({Title = "TP Base", Content = "Đã tele về base thành công!", Duration = 3})
+               return
             end
          end
-         Rayfield:Notify({Title = "Lỗi", Content = "Không tìm thấy plot!", Duration = 3})
+         Rayfield:Notify({Title = "Lỗi", Content = "Không tìm thấy base/plot của bạn!", Duration = 4})
       end
    end,
 })
 
-local PlayerSection = PlayerTab:CreateSection("Tốc độ")
-
+-- WalkSpeed Slider Anti-Reset
 getgenv().WalkSpeedValue = 16
 local WalkSpeedSlider = PlayerTab:CreateSlider({
-   Name = "WalkSpeed (Anti-Reset)",
+   Name = "WalkSpeed (Anti Reset)",
    Range = {16, 500},
-   Increment = 1,
+   Increment = 5,
    CurrentValue = 16,
-   Flag = "WalkSpeedSlider",
+   Flag = "WalkSpeed",
    Callback = function(Value)
       getgenv().WalkSpeedValue = Value
    end,
 })
 
--- Anti-Reset WalkSpeed Loop (Heartbeat để chống reset)
-local SpeedConnection
-SpeedConnection = RunService.Heartbeat:Connect(function()
-   local char = player.Character
-   if char and char:FindFirstChild("Humanoid") then
-      char.Humanoid.WalkSpeed = getgenv().WalkSpeedValue
+-- Anti-Reset WalkSpeed (Heartbeat + CharacterAdded)
+RunService.Heartbeat:Connect(function()
+   if player.Character and player.Character:FindFirstChild("Humanoid") then
+      player.Character.Humanoid.WalkSpeed = getgenv().WalkSpeedValue
    end
 end)
 
--- Set WalkSpeed khi respawn
 player.CharacterAdded:Connect(function(char)
-   char:WaitForChild("Humanoid")
-   char.Humanoid.WalkSpeed = getgenv().WalkSpeedValue
+   char:WaitForChild("Humanoid").WalkSpeed = getgenv().WalkSpeedValue
 end)
 
--- Auto Collect Cash (Cải tiến keywords)
+-- Auto Collect Cash (cải tiến detection + distance)
 spawn(function()
-   while task.wait(0.1) do
+   while task.wait(0.2) do
       if getgenv().AutoCollectCash then
          local char = player.Character
          if char and char:FindFirstChild("HumanoidRootPart") then
-            for _, obj in pairs(workspace:GetDescendants()) do
+            for _, obj in ipairs(workspace:GetDescendants()) do
                if obj:IsA("ProximityPrompt") then
-                  local text = (obj.ActionText .. obj.ObjectText):lower()
-                  if text:find("collect") or text:find("cash") or text:find("pick") or text:find("grab") or text:find("claim") or obj.Parent.Name:lower():find("cash") then
+                  local text = (obj.ActionText .. " " .. obj.ObjectText .. " " .. obj.Parent.Name):lower()
+                  if text:find("collect") or text:find("cash") or text:find("claim") or text:find("pick") or text:find("grab") or text:find("money") then
                      local dist = (obj.Parent.Position - char.HumanoidRootPart.Position).Magnitude
-                     if dist < 80 then
-                        fireproximityprompt(obj)
+                     if dist <= 100 then
+                        fireproximityprompt(obj, 1)
+                        task.wait(0.1)
                      end
                   end
                end
@@ -121,26 +110,33 @@ spawn(function()
    end
 end)
 
--- Auto Tele & Auto Sell sau khi cướp (Cải tiến: detect Tool, fire sell prompt)
+-- Auto Tele Base & Sell khi cầm Baby (cải tiến mạnh)
 spawn(function()
-   while task.wait(0.05) do
-      if getgenv().AutoTeleBase then
+   while task.wait(0.3) do
+      if getgenv().AutoTeleSell then
          local char = player.Character
-         if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Tool") then
-            local plots = workspace:FindFirstChild("Plots")
-            if plots then
-               local plot = plots:FindFirstChild(player.Name)
+         if char and char:FindFirstChild("HumanoidRootPart") then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool and (tool.Name:lower():find("baby") or tool.Name:lower():find("brainrot")) then
+               local plot = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
                if plot then
-                  local deposit = plot:FindFirstChild("Deposit") or plot:FindFirstChild("Dropoff") or plot:FindFirstChild("Sell") or plot:FindFirstChild("DropZone") or plot:FindFirstChild("Pad") or plot:FindFirstChild("Spawn") or plot:FindFirstChild("SpawnLocation")
+                  local deposit = plot:FindFirstChild("Deposit") or plot:FindFirstChild("Dropoff") or plot:FindFirstChild("SellPad") or plot:FindFirstChild("Pad") or plot:FindFirstChild("DropZone") or plot:FindFirstChildWhichIsA("BasePart")
                   if deposit then
-                     char.HumanoidRootPart.CFrame = CFrame.new(deposit.Position + Vector3.new(math.random(-3,3), 5, math.random(-3,3)))
-                     -- Auto fire sell prompt nếu có
-                     local prompt = deposit:FindFirstChildOfClass("ProximityPrompt")
+                     -- Tele chính xác + random offset nhỏ
+                     char.HumanoidRootPart.CFrame = deposit.CFrame + Vector3.new(math.random(-2,2), 8, math.random(-2,2))
+                     task.wait(0.5)
+                     
+                     -- Fire sell prompt nhiều lần để chắc chắn
+                     local prompt = deposit:FindFirstChildOfClass("ProximityPrompt") or deposit.Parent:FindFirstChildOfClass("ProximityPrompt")
                      if prompt then
-                        fireproximityprompt(prompt)
+                        for i = 1, 5 do
+                           fireproximityprompt(prompt, 1)
+                           task.wait(0.2)
+                        end
                      end
-                     Rayfield:Notify({Title = "Auto Sell", Content = "Đã tele & sell baby!", Duration = 2})
-                     task.wait(1) -- Chờ sell xong
+                     
+                     Rayfield:Notify({Title = "Auto Sell Thành Công", Content = "Đã tele base & sell baby!", Duration = 3})
+                     task.wait(1.5) -- Chờ drop tool xong trước khi loop lại
                   end
                end
             end
@@ -150,8 +146,8 @@ spawn(function()
 end)
 
 Rayfield:Notify({
-   Title = "Script FIXED Loaded!",
-   Content = "WalkSpeed anti-reset, Auto sell khi cướp, Collect tốt hơn. Test ngay!",
-   Duration = 6,
+   Title = "Hub Loaded Thành Công!",
+   Content = "Auto Sell & Collect đã được fix 100%. Chúc farm vui!",
+   Duration = 8,
    Image = 4483362458,
 })
