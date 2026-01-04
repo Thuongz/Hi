@@ -1,104 +1,438 @@
--- Don't Steal the Baby Brainrots - Custom Hub NO KEY by Grok (Jan 2026)
--- Features: Auto Steal Nearby Sleeping Babies, Auto Tele Base/Escape, Auto Collect Cash, Auto Sell, Speed, ESP Babies
+--[[
+	Custom Multi-Tab Mobile Menu V7 - Flag Wars Hub (Final Fix)
+	- WalkSpeed FIX 100% (loop Heartbeat + persist chết)
+	- Custom Speed: TextBox để tự chỉnh tốc độ (mặc định 50, nhập số bất kỳ)
+	- Nút OPEN nhỏ lại (90x60px) nhưng vẫn dễ bấm/kéo
+	- Tab PLAYER đầy đủ: Custom Speed, Inf Jump, NoClip
+	- Menu mượt mobile, draggable
+]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
 
-local Window = Rayfield:CreateWindow({Name = "Baby Brainrots Hub - NO KEY", KeySystem = false})
+-- Biến trạng thái
+local KillEnabled = false
+local SpeedEnabled = false
+local InfJumpEnabled = false
+local NoClipEnabled = false
 
-local MainTab = Window:CreateTab("Auto Farm")
-local PlayerTab = Window:CreateTab("Player")
+local CUSTOM_SPEED = 50  -- Mặc định
+local NORMAL_SPEED = 16
 
-getgenv().AutoSteal = false
-getgenv().AutoEscape = false
-getgenv().AutoCollect = false
-getgenv().Speed = 50
+local speedLoop = nil
+local infJumpConn = nil
+local noClipConn = nil
 
--- Toggles
-MainTab:CreateToggle({Name = "Auto Steal Baby (Nearby)", Callback = function(v) getgenv().AutoSteal = v end})
-MainTab:CreateToggle({Name = "Auto Escape to Base (khi cầm Baby)", Callback = function(v) getgenv().AutoEscape = v end})
-MainTab:CreateToggle({Name = "Auto Collect Cash", Callback = function(v) getgenv().AutoCollect = v end})
+-- Hàm lấy AWM
+local function getAWM()
+    return LocalPlayer.Backpack:FindFirstChild("AWM") or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("AWM"))
+end
 
-PlayerTab:CreateSlider({Name = "Speed", Range = {16, 200}, Callback = function(v) getgenv().Speed = v end})
-
--- Speed Loop
-RunService.Heartbeat:Connect(function()
-   if player.Character and player.Character:FindFirstChild("Humanoid") then
-      player.Character.Humanoid.WalkSpeed = getgenv().Speed
-   end
-end)
-
--- Auto Collect Cash (ProximityPrompt cash)
-task.spawn(function()
-   while task.wait(0.2) do
-      if getgenv().AutoCollect then
-         for _, prompt in workspace:GetDescendants() do
-            if prompt:IsA("ProximityPrompt") and (prompt.ActionText:lower():find("collect") or prompt.ObjectText:lower():find("cash") or prompt.ObjectText:lower():find("money")) then
-               local char = player.Character
-               if char and (prompt.Parent.Position - char.HumanoidRootPart.Position).Magnitude < 50 then
-                  fireproximityprompt(prompt)
-               end
+-- Hàm apply Custom Speed (loop chống reset)
+local function applyCustomSpeed()
+    if speedLoop then speedLoop:Disconnect() end
+    if SpeedEnabled then
+        speedLoop = RunService.Heartbeat:Connect(function()
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then
+                hum.WalkSpeed = CUSTOM_SPEED
             end
-         end
-      end
-   end
-end)
+        end)
+    end
+end
 
--- Auto Steal (find sleeping babies, grab)
-task.spawn(function()
-   while task.wait(0.5) do
-      if getgenv().AutoSteal then
-         local char = player.Character
-         if char then
-            for _, baby in workspace:GetDescendants() do
-               if baby.Name:lower():find("baby") or baby.Name:lower():find("brainrot") then
-                  if baby:FindFirstChild("Humanoid") and baby.Humanoid.Health > 0 and (baby.PrimaryPart.Position - char.HumanoidRootPart.Position).Magnitude < 20 then
-                     -- Assume grab via ProximityPrompt or tool
-                     local prompt = baby:FindFirstChildOfClass("ProximityPrompt")
-                     if prompt then fireproximityprompt(prompt) end
-                  end
-               end
+-- Infinite Jump
+local function toggleInfJump(state)
+    if infJumpConn then infJumpConn:Disconnect() end
+    if state then
+        infJumpConn = UserInputService.JumpRequest:Connect(function()
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then hum:ChangeState("Jumping") end
+        end)
+    end
+end
+
+-- NoClip
+local function toggleNoClip(state)
+    if noClipConn then noClipConn:Disconnect() end
+    if state then
+        noClipConn = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
             end
-         end
-      end
-   end
+        end)
+    end
+end
+
+-- Persist khi chết/respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)  -- Đợi character load đầy đủ
+    if SpeedEnabled then applyCustomSpeed() end
+    if InfJumpEnabled then toggleInfJump(true) end
+    if NoClipEnabled then toggleNoClip(true) end
 end)
 
--- Auto Escape (when holding tool/baby, tele to base)
-task.spawn(function()
-   while task.wait(0.1) do
-      if getgenv().AutoEscape then
-         local char = player.Character
-         if char and char:FindFirstChildOfClass("Tool") then  -- Holding stolen baby
-            -- Find your base (common: ReplicatedStorage.Plots[player.Name] or workspace.Plots[player.Name])
-            pcall(function()
-               local base = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
-               or game.ReplicatedStorage:FindFirstChild("Plots") and game.ReplicatedStorage.Plots:FindFirstChild(player.Name)
-               if base then
-                  local spawn = base:FindFirstChild("Spawn") or base.PrimaryPart
-                  char.HumanoidRootPart.CFrame = spawn.CFrame + Vector3.new(0,5,0)
-                  -- Auto sell prompt
-                  task.wait(0.5)
-                  for _, p in base:GetDescendants() do
-                     if p:IsA("ProximityPrompt") and p.ActionText:lower():find("sell") then
-                        fireproximityprompt(p)
-                     end
-                  end
-               end
+-- Thông báo
+local function notify(title, text)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {Title = title, Text = text, Duration = 4})
+    end)
+end
+
+notify("Hub Final Fix!", "WalkSpeed hoạt động + Custom Speed TextBox")
+
+-- ScreenGui & MainFrame (giữ nguyên)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlagWarsHubV7"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 280, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner", MainFrame)
+MainCorner.CornerRadius = UDim.new(0, 15)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(80, 180, 255)
+MainStroke.Thickness = 2.5
+
+-- Title & Minimize (giữ nguyên)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -60, 0, 35)
+Title.Position = UDim2.new(0, 15, 0, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "🚀 Flag Wars Hub"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 20
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+local MinButton = Instance.new("TextButton")
+MinButton.Size = UDim2.new(0, 30, 0, 30)
+MinButton.Position = UDim2.new(1, -40, 0, 8)
+MinButton.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
+MinButton.Text = "−"
+MinButton.TextColor3 = Color3.new(1,1,1)
+MinButton.TextSize = 24
+MinButton.Parent = MainFrame
+
+local MinCorner = Instance.new("UICorner", MinButton)
+MinCorner.CornerRadius = UDim.new(0, 15)
+
+-- Tab Buttons & Content (giữ nguyên cấu trúc)
+local TabFrame = Instance.new("Frame")
+TabFrame.Size = UDim2.new(1, -20, 0, 35)
+TabFrame.Position = UDim2.new(0, 10, 0, 50)
+TabFrame.BackgroundTransparency = 1
+TabFrame.Parent = MainFrame
+
+local tabs = {"MAIN", "PLAYER", "MISC"}
+local currentTab = "MAIN"
+local tabContents = {}
+
+for i, tabName in ipairs(tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.32, -4, 1, 0)
+    btn.Position = UDim2.new((i-1)*0.333, 0, 0, 0)
+    btn.BackgroundColor3 = (tabName == currentTab) and Color3.fromRGB(50, 150, 255) or Color3.fromRGB(45, 45, 65)
+    btn.Text = tabName
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextSize = 16
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = TabFrame
+
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 10)
+
+    btn.MouseButton1Click:Connect(function()
+        currentTab = tabName
+        for _, b in pairs(TabFrame:GetChildren()) do
+            if b:IsA("TextButton") then
+                b.BackgroundColor3 = (b.Text == tabName) and Color3.fromRGB(50, 150, 255) or Color3.fromRGB(45, 45, 65)
+            end
+        end
+        for _, content in pairs(tabContents) do
+            content.Visible = (content.Name == tabName .. "Content")
+        end
+    end)
+end
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -20, 1, -120)
+ContentFrame.Position = UDim2.new(0, 10, 0, 95)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- MAIN Tab - Slow Kill (giữ nguyên)
+local MainContent = Instance.new("Frame")
+MainContent.Name = "MAINContent"
+MainContent.Size = UDim2.new(1,0,1,0)
+MainContent.BackgroundTransparency = 1
+MainContent.Visible = true
+MainContent.Parent = ContentFrame
+table.insert(tabContents, MainContent)
+
+local KillBtn = Instance.new("TextButton")
+KillBtn.Size = UDim2.new(1, -20, 0, 80)
+KillBtn.Position = UDim2.new(0, 10, 0, 20)
+KillBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+KillBtn.Text = "SLOW KILL: TẮT\n(1 người / ~1 giây)"
+KillBtn.TextColor3 = Color3.new(1,1,1)
+KillBtn.TextSize = 20
+KillBtn.Font = Enum.Font.GothamBold
+KillBtn.Parent = MainContent
+
+local KillCorner = Instance.new("UICorner", KillBtn)
+KillCorner.CornerRadius = UDim.new(0, 12)
+
+local KillStroke = Instance.new("UIStroke", KillBtn)
+KillStroke.Color = Color3.fromRGB(255, 100, 100)
+KillStroke.Thickness = 2
+
+KillBtn.MouseButton1Click:Connect(function()
+    KillEnabled = not KillEnabled
+    if KillEnabled then
+        KillBtn.Text = "SLOW KILL: BẬT\n(1 người / ~1 giây)"
+        KillBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        KillStroke.Color = Color3.fromRGB(100, 255, 100)
+        notify("KILL BẬT", "Đang kill chậm")
+    else
+        KillBtn.Text = "SLOW KILL: TẮT\n(1 người / ~1 giây)"
+        KillBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        KillStroke.Color = Color3.fromRGB(255, 100, 100)
+        notify("KILL TẮT", "Đã dừng")
+    end
+end)
+
+-- PLAYER Tab - Custom Speed + Inf Jump + NoClip
+local PlayerContent = Instance.new("Frame")
+PlayerContent.Name = "PLAYERContent"
+PlayerContent.Size = UDim2.new(1,0,1,0)
+PlayerContent.BackgroundTransparency = 1
+PlayerContent.Visible = false
+PlayerContent.Parent = ContentFrame
+table.insert(tabContents, PlayerContent)
+
+-- Custom Speed Toggle + TextBox
+local SpeedFrame = Instance.new("Frame")
+SpeedFrame.Size = UDim2.new(1, -20, 0, 80)
+SpeedFrame.Position = UDim2.new(0, 10, 0, 10)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+SpeedFrame.Parent = PlayerContent
+
+local SpeedCorner = Instance.new("UICorner", SpeedFrame)
+SpeedCorner.CornerRadius = UDim.new(0, 10)
+
+local SpeedToggle = Instance.new("TextButton")
+SpeedToggle.Size = UDim2.new(0.6, 0, 1, 0)
+SpeedToggle.BackgroundTransparency = 1
+SpeedToggle.Text = "WALKSPEED: TẮT"
+SpeedToggle.TextColor3 = Color3.new(1,1,1)
+SpeedToggle.TextSize = 20
+SpeedToggle.Font = Enum.Font.GothamBold
+SpeedToggle.Parent = SpeedFrame
+
+SpeedToggle.MouseButton1Click:Connect(function()
+    SpeedEnabled = not SpeedEnabled
+    applyCustomSpeed()
+    SpeedToggle.Text = "WALKSPEED: " .. (SpeedEnabled and "BẬT" or "TẮT")
+    SpeedFrame.BackgroundColor3 = SpeedEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(100, 100, 200)
+    notify("SPEED", SpeedEnabled and ("Bật tốc độ " .. CUSTOM_SPEED) or "Tắt tốc độ")
+end)
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Size = UDim2.new(0.4, -10, 0.8, 0)
+SpeedBox.Position = UDim2.new(0.6, 5, 0.1, 0)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+SpeedBox.Text = tostring(CUSTOM_SPEED)
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+SpeedBox.TextSize = 18
+SpeedBox.Font = Enum.Font.Gotham
+SpeedBox.PlaceholderText = "Speed"
+SpeedBox.Parent = SpeedFrame
+
+local BoxCorner = Instance.new("UICorner", SpeedBox)
+BoxCorner.CornerRadius = UDim.new(0, 8)
+
+SpeedBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local num = tonumber(SpeedBox.Text)
+        if num and num > 0 then
+            CUSTOM_SPEED = num
+            SpeedBox.Text = tostring(CUSTOM_SPEED)
+            if SpeedEnabled then
+                applyCustomSpeed()  -- Update ngay nếu đang bật
+                notify("SPEED UPDATED", "Tốc độ mới: " .. CUSTOM_SPEED)
+            end
+        else
+            SpeedBox.Text = tostring(CUSTOM_SPEED)
+        end
+    end
+end)
+
+-- Infinite Jump Button
+local JumpBtn = Instance.new("TextButton")
+JumpBtn.Size = UDim2.new(1, -20, 0, 60)
+JumpBtn.Position = UDim2.new(0, 10, 0, 100)
+JumpBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+JumpBtn.Text = "INFINITE JUMP: TẮT"
+JumpBtn.TextColor3 = Color3.new(1,1,1)
+JumpBtn.TextSize = 18
+JumpBtn.Font = Enum.Font.GothamBold
+JumpBtn.Parent = PlayerContent
+
+local JumpCorner = Instance.new("UICorner", JumpBtn)
+JumpCorner.CornerRadius = UDim.new(0, 10)
+
+JumpBtn.MouseButton1Click:Connect(function()
+    InfJumpEnabled = not InfJumpEnabled
+    toggleInfJump(InfJumpEnabled)
+    JumpBtn.Text = "INFINITE JUMP: " .. (InfJumpEnabled and "BẬT" or "TẮT")
+    JumpBtn.BackgroundColor3 = InfJumpEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(100, 100, 200)
+end)
+
+-- NoClip Button
+local NoClipBtn = Instance.new("TextButton")
+NoClipBtn.Size = UDim2.new(1, -20, 0, 60)
+NoClipBtn.Position = UDim2.new(0, 10, 0, 170)
+NoClipBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+NoClipBtn.Text = "NOCLIP: TẮT"
+NoClipBtn.TextColor3 = Color3.new(1,1,1)
+NoClipBtn.TextSize = 18
+NoClipBtn.Font = Enum.Font.GothamBold
+NoClipBtn.Parent = PlayerContent
+
+local NoClipCorner = Instance.new("UICorner", NoClipBtn)
+NoClipCorner.CornerRadius = UDim.new(0, 10)
+
+NoClipBtn.MouseButton1Click:Connect(function()
+    NoClipEnabled = not NoClipEnabled
+    toggleNoClip(NoClipEnabled)
+    NoClipBtn.Text = "NOCLIP: " .. (NoClipEnabled and "BẬT" or "TẮT")
+    NoClipBtn.BackgroundColor3 = NoClipEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(100, 100, 200)
+end)
+
+-- MISC Tab (giữ nguyên)
+local MiscContent = Instance.new("Frame")
+MiscContent.Name = "MISCContent"
+MiscContent.Size = UDim2.new(1,0,1,0)
+MiscContent.BackgroundTransparency = 1
+MiscContent.Visible = false
+MiscContent.Parent = ContentFrame
+table.insert(tabContents, MiscContent)
+
+local MiscLabel = Instance.new("TextLabel")
+MiscLabel.Size = UDim2.new(1,0,1,0)
+MiscLabel.BackgroundTransparency = 1
+MiscLabel.Text = "Misc Info\n• Custom Speed TextBox\n• All hacks persist chết\n• Mobile optimized"
+MiscLabel.TextColor3 = Color3.fromRGB(180, 255, 180)
+MiscLabel.TextSize = 18
+MiscLabel.Parent = MiscContent
+
+-- Nút OPEN (nhỏ lại)
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.new(0, 90, 0, 60)  -- Nhỏ hơn
+OpenButton.Position = UDim2.new(1, -100, 1, -70)
+OpenButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+OpenButton.Text = "OPEN"
+OpenButton.TextColor3 = Color3.new(1,1,1)
+OpenButton.TextSize = 22
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.Visible = false
+OpenButton.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner", OpenButton)
+OpenCorner.CornerRadius = UDim.new(0, 12)
+
+local OpenStroke = Instance.new("UIStroke", OpenButton)
+OpenStroke.Color = Color3.fromRGB(100, 255, 100)
+OpenStroke.Thickness = 2
+
+-- Đóng/Mở menu
+MinButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenButton.Visible = true
+end)
+
+OpenButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenButton.Visible = false
+end)
+
+-- Draggable (giữ nguyên từ phiên bản trước)
+local function makeDraggable(frame)
+    local dragging = false
+    local dragInput, mouseStart, frameStart
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            mouseStart = input.Position
+            frameStart = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
-         end
-      end
-   end
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - mouseStart
+            frame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + delta.X, frameStart.Y.Scale, frameStart.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(MainFrame)
+makeDraggable(OpenButton)
+
+-- Loop Kill
+spawn(function()
+    while true do
+        task.wait(0.1)
+        if not KillEnabled then continue end
+        local awm = getAWM()
+        if not awm then continue end
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid and humanoid.Health > 0 and not player.Character:FindFirstChildOfClass("ForceField") then
+                    local args = {
+                        [1] = awm,
+                        [2] = {
+                            ["p"] = player.Character.Head.Position,
+                            ["pid"] = 1,
+                            ["part"] = player.Character.Head,
+                            ["d"] = 0.27 + math.random(-100, 100)/10000,
+                            ["maxDist"] = 0.027 + math.random(-100, 100)/10000,
+                            ["h"] = humanoid,
+                            ["m"] = Enum.Material.Plastic,
+                            ["sid"] = 250,
+                            ["t"] = 0.5,
+                            ["n"] = Vector3.new(0, -1, 0)
+                        }
+                    }
+                    ReplicatedStorage.WeaponsSystem.Network.WeaponHit:FireServer(unpack(args))
+                    break
+                end
+            end
+        end
+        task.wait(1 + math.random(-200, 200)/1000)
+    end
 end)
-
--- TP Base Button
-MainTab:CreateButton({Name = "TP My Base", Callback = function()
-   local base = workspace:FindFirstChild("Plots") and workspace.Plots:FindFirstChild(player.Name)
-   if base and player.Character then
-      player.Character.HumanoidRootPart.CFrame = (base.Spawn or base.PrimaryPart).CFrame + Vector3.new(0,10,0)
-   end
-end})
-
-Rayfield:Notify({Title = "Loaded NO KEY!", Content = "Bật Auto Steal & Escape farm ngay!"})
